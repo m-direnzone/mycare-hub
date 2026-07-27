@@ -1,0 +1,185 @@
+# =========================
+# OS
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# =========================
+# IDEs & editors
+# =========================
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+*.swp
+*.swo
+*~
+
+# =========================
+# Environment & secrets
+# =========================
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+appsettings.*.local.json
+
+# =========================
+# Logs & diagnostics
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Backend (.NET / ASP.NET)
+# =========================
+bin/
+obj/
+out/
+publish/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+project.lock.json
+project.fragment.lock.json
+artifacts/
+TestResults/
+[Tt]est[Rr]esult*/
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+.nuget/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Entity Framework
+*.dbmdl
+*.jfm
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# =========================
+# Frontend (Node / Next.js / React / TypeScript)
+# =========================
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js
+.next/
+out/
+.vercel/
+next-env.d.ts
+
+# Build / transpile output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# Testing
+/coverage
+.nyc_output
+*.lcov
+playwright-report/
+test-results/
+.playwright/
+
+# Package managers
+package-lock.json.bak
+yarn.lock.bak
+pnpm-lock.yaml.bak
+
+# TypeScript
+*.tsbuildinfo
+
+# Storybook
+storybook-static/
+
+# PWA / generated
+public/sw.js
+public/workbox-*.js
+public/sw.js.map
+public/workbox-*.js.map
+
+# =========================
+# Misc
+# =========================
+*.local
+.cache/
+.temp/
+.tmp/
+*.bak
+*.orig
+*.rej
