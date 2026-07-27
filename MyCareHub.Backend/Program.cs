@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using MyCareHub.Backend.Entities.Enums;
+using MyCareHub.Backend.Repositories.Implementations;
+using MyCareHub.Backend.Repositories.Interfaces;
 using Supabase;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -92,6 +94,12 @@ builder.Services.AddScoped<Client>(_ =>
     client.InitializeAsync().GetAwaiter().GetResult();
     return client;
 });
+
+builder.Services.AddScoped<IProfiloRepository, ProfiloRepository>();
+builder.Services.AddScoped<IMedicoRepository, MedicoRepository>();
+builder.Services.AddScoped<ISlotDisponibilitaRepository, SlotDisponibilitaRepository>();
+builder.Services.AddScoped<IPrenotazioneRepository, PrenotazioneRepository>();
+builder.Services.AddScoped<IRefertoMedicoRepository, RefertoMedicoRepository>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
