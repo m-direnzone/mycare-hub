@@ -10,6 +10,7 @@ public class RefertoService : IRefertoService
 {
     private const int SignedUrlExpiresInSeconds = 3600;
     private const string DefaultBucketName = "referti";
+    private const long MaxFileBytes = 10 * 1024 * 1024;
 
     private readonly IRefertoMedicoRepository _refertoRepository;
     private readonly IProfiloRepository _profiloRepository;
@@ -32,6 +33,60 @@ public class RefertoService : IRefertoService
         _prenotazioneRepository = prenotazioneRepository;
         _supabase = supabase;
         _bucketName = configuration["Supabase:Storage:RefertiBucket"] ?? DefaultBucketName;
+    }
+
+    public async Task<RefertoDto?> CaricaRefertoAsync(
+        Guid medicoId,
+        RefertoCreateDto dto,
+        Stream fileStream,
+        string fileName,
+        string contentType)
+    {
+        if (fileStream is null || fileStream == Stream.Null)
+            return null;
+
+        if (!IsPdf(contentType, fileName))
+            return null;
+
+        await using var buffer = new MemoryStream();
+        await fileStream.CopyToAsync(buffer);
+        if (buffer.Length == 0 || buffer.Length > MaxFileBytes)
+            return null;
+
+        var safeName = SanitizeFileName(fileName);
+        var storagePath = $"{dto.PazienteId:D}/{medicoId:D}/{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}_{safeName}";
+        var bytes = buffer.ToArray();
+
+        var uploadedPath = await _supabase.Storage
+            .From(_bucketName)
+            .Upload(bytes, storagePath, new Supabase.Storage.FileOptions
+            {
+                ContentType = "application/pdf",
+                Upsert = false
+            });
+
+        if (string.IsNullOrWhiteSpace(uploadedPath))
+            return null;
+
+        // Upload può restituire "bucket/path" o solo il path relativo
+        var normalizedPath = uploadedPath.StartsWith($"{_bucketName}/", StringComparison.Ordinal)
+            ? uploadedPath[(_bucketName.Length + 1)..]
+            : uploadedPath.TrimStart('/');
+
+        var referto = await SalvaMetaRefertoAsync(medicoId, dto, normalizedPath);
+        if (referto is null)
+        {
+            try
+            {
+                await _supabase.Storage.From(_bucketName).Remove(new List<string> { normalizedPath });
+            }
+            catch
+            {
+                // Compensazione best-effort: i metadati non sono stati salvati
+            }
+        }
+
+        return referto;
     }
 
     public async Task<RefertoDto?> SalvaMetaRefertoAsync(
@@ -149,4 +204,27 @@ public class RefertoService : IRefertoService
         MedicoNomeCompleto = $"{medico.Nome} {medico.Cognome}",
         MedicoSpecializzazione = dettagliMedico?.Specializzazione ?? string.Empty
     };
+
+    private static bool IsPdf(string contentType, string fileName)
+    {
+        if (contentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(name))
+            return "referto.pdf";
+
+        foreach (var c in Path.GetInvalidFileNameChars())
+            name = name.Replace(c, '_');
+
+        if (!name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            name += ".pdf";
+
+        return name.Length > 120 ? name[^120..] : name;
+    }
 }

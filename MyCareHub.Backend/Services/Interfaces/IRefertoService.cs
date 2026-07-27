@@ -5,6 +5,16 @@ namespace MyCareHub.Backend.Services.Interfaces;
 public interface IRefertoService
 {
     /// <summary>
+    /// Carica il PDF su Supabase Storage e persiste i metadati clinici.
+    /// </summary>
+    Task<RefertoDto?> CaricaRefertoAsync(
+        Guid medicoId,
+        RefertoCreateDto dto,
+        Stream fileStream,
+        string fileName,
+        string contentType);
+
+    /// <summary>
     /// Registra i metadati di un referto associandoli al path del file su Storage.
     /// </summary>
     Task<RefertoDto?> SalvaMetaRefertoAsync(Guid medicoId, RefertoCreateDto dto, string storageFilePath);
