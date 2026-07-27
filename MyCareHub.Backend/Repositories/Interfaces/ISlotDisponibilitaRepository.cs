@@ -26,6 +26,12 @@ public interface ISlotDisponibilitaRepository
     Task<bool> UpdateStatoPrenotazioneAsync(Guid id, bool isPrenotato);
 
     /// <summary>
+    /// Blocca atomicamente uno slot libero (UPDATE solo se is_prenotato = false).
+    /// Protegge dalle race condition su prenotazioni concorrenti.
+    /// </summary>
+    Task<bool> TryLockSlotAsync(Guid id);
+
+    /// <summary>
     /// Elimina uno slot solo se non è ancora stato prenotato.
     /// </summary>
     Task<bool> DeleteAsync(Guid id);

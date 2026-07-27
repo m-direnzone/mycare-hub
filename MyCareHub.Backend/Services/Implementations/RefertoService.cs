@@ -1,0 +1,152 @@
+using MyCareHub.Backend.Entities;
+using MyCareHub.Backend.Entities.Enums;
+using MyCareHub.Backend.Models.DTOs.Referto;
+using MyCareHub.Backend.Repositories.Interfaces;
+using MyCareHub.Backend.Services.Interfaces;
+
+namespace MyCareHub.Backend.Services.Implementations;
+
+public class RefertoService : IRefertoService
+{
+    private const int SignedUrlExpiresInSeconds = 3600;
+    private const string DefaultBucketName = "referti";
+
+    private readonly IRefertoMedicoRepository _refertoRepository;
+    private readonly IProfiloRepository _profiloRepository;
+    private readonly IMedicoRepository _medicoRepository;
+    private readonly IPrenotazioneRepository _prenotazioneRepository;
+    private readonly Supabase.Client _supabase;
+    private readonly string _bucketName;
+
+    public RefertoService(
+        IRefertoMedicoRepository refertoRepository,
+        IProfiloRepository profiloRepository,
+        IMedicoRepository medicoRepository,
+        IPrenotazioneRepository prenotazioneRepository,
+        Supabase.Client supabase,
+        IConfiguration configuration)
+    {
+        _refertoRepository = refertoRepository;
+        _profiloRepository = profiloRepository;
+        _medicoRepository = medicoRepository;
+        _prenotazioneRepository = prenotazioneRepository;
+        _supabase = supabase;
+        _bucketName = configuration["Supabase:Storage:RefertiBucket"] ?? DefaultBucketName;
+    }
+
+    public async Task<RefertoDto?> SalvaMetaRefertoAsync(
+        Guid medicoId,
+        RefertoCreateDto dto,
+        string storageFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(storageFilePath))
+            return null;
+
+        var medico = await _profiloRepository.GetByIdAsync(medicoId);
+        if (medico is null || medico.Ruolo != RuoloUtente.Medico)
+            return null;
+
+        var paziente = await _profiloRepository.GetByIdAsync(dto.PazienteId);
+        if (paziente is null || paziente.Ruolo != RuoloUtente.Paziente)
+            return null;
+
+        if (dto.PrenotazioneId.HasValue)
+        {
+            var prenotazione = await _prenotazioneRepository.GetByIdAsync(dto.PrenotazioneId.Value);
+            if (prenotazione is null
+                || prenotazione.MedicoId != medicoId
+                || prenotazione.PazienteId != dto.PazienteId)
+            {
+                return null;
+            }
+        }
+
+        var referto = new RefertoMedico
+        {
+            Id = Guid.NewGuid(),
+            PrenotazioneId = dto.PrenotazioneId,
+            PazienteId = dto.PazienteId,
+            MedicoId = medicoId,
+            Titolo = dto.Titolo.Trim(),
+            Descrizione = string.IsNullOrWhiteSpace(dto.Descrizione) ? null : dto.Descrizione.Trim(),
+            FilePath = storageFilePath.Trim(),
+            DataEmissione = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreatoAt = DateTimeOffset.UtcNow
+        };
+
+        var creato = await _refertoRepository.CreateAsync(referto);
+        if (creato is null)
+            return null;
+
+        var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(medicoId);
+        var downloadUrl = await CreateSignedDownloadUrlAsync(creato.FilePath);
+
+        return MapReferto(creato, medico, dettagliMedico, downloadUrl);
+    }
+
+    public async Task<IEnumerable<RefertoDto>> GetFascicoloSanitarioPazienteAsync(Guid pazienteId)
+    {
+        var referti = (await _refertoRepository.GetByPazienteIdAsync(pazienteId)).ToList();
+        if (referti.Count == 0)
+            return [];
+
+        var result = new List<RefertoDto>(referti.Count);
+        foreach (var referto in referti)
+        {
+            var dto = await MapRefertoConSignedUrlAsync(referto);
+            if (dto is not null)
+                result.Add(dto);
+        }
+
+        return result;
+    }
+
+    public async Task<RefertoDto?> GetRefertoByIdAsync(Guid refertoId)
+    {
+        var referto = await _refertoRepository.GetByIdAsync(refertoId);
+        if (referto is null)
+            return null;
+
+        return await MapRefertoConSignedUrlAsync(referto);
+    }
+
+    private async Task<RefertoDto?> MapRefertoConSignedUrlAsync(RefertoMedico referto)
+    {
+        var medico = await _profiloRepository.GetByIdAsync(referto.MedicoId);
+        if (medico is null)
+            return null;
+
+        var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(referto.MedicoId);
+        var downloadUrl = await CreateSignedDownloadUrlAsync(referto.FilePath);
+
+        return MapReferto(referto, medico, dettagliMedico, downloadUrl);
+    }
+
+    private async Task<string> CreateSignedDownloadUrlAsync(string filePath)
+    {
+        // Signed URL a tempo (1 ora): nessun URL pubblico permanente sul PDF clinico
+        var signedUrl = await _supabase.Storage
+            .From(_bucketName)
+            .CreateSignedUrl(filePath, SignedUrlExpiresInSeconds);
+
+        return signedUrl;
+    }
+
+    private static RefertoDto MapReferto(
+        RefertoMedico referto,
+        Profilo medico,
+        MedicoDettaglio? dettagliMedico,
+        string downloadUrl) => new()
+    {
+        Id = referto.Id,
+        PrenotazioneId = referto.PrenotazioneId,
+        PazienteId = referto.PazienteId,
+        MedicoId = referto.MedicoId,
+        Titolo = referto.Titolo,
+        Descrizione = referto.Descrizione,
+        DataEmissione = referto.DataEmissione,
+        DownloadUrl = downloadUrl,
+        MedicoNomeCompleto = $"{medico.Nome} {medico.Cognome}",
+        MedicoSpecializzazione = dettagliMedico?.Specializzazione ?? string.Empty
+    };
+}

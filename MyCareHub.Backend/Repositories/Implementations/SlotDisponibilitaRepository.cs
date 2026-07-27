@@ -84,6 +84,18 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
         return response.Models.Count > 0;
     }
 
+    public async Task<bool> TryLockSlotAsync(Guid id)
+    {
+        var response = await _supabase
+            .From<SlotDisponibilita>()
+            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.IsPrenotato!, Operator.Equals, false)
+            .Set(x => x.IsPrenotato!, true)
+            .Update();
+
+        return response.Models.Count > 0;
+    }
+
     public async Task<bool> DeleteAsync(Guid id)
     {
         var slot = await GetByIdAsync(id);

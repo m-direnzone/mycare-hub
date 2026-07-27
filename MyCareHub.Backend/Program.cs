@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using MyCareHub.Backend.Entities.Enums;
 using MyCareHub.Backend.Repositories.Implementations;
 using MyCareHub.Backend.Repositories.Interfaces;
+using MyCareHub.Backend.Services.Implementations;
+using MyCareHub.Backend.Services.Interfaces;
 using Supabase;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -100,6 +102,11 @@ builder.Services.AddScoped<IMedicoRepository, MedicoRepository>();
 builder.Services.AddScoped<ISlotDisponibilitaRepository, SlotDisponibilitaRepository>();
 builder.Services.AddScoped<IPrenotazioneRepository, PrenotazioneRepository>();
 builder.Services.AddScoped<IRefertoMedicoRepository, RefertoMedicoRepository>();
+
+builder.Services.AddScoped<IProfiloService, ProfiloService>();
+builder.Services.AddScoped<ISlotService, SlotService>();
+builder.Services.AddScoped<IPrenotazioneService, PrenotazioneService>();
+builder.Services.AddScoped<IRefertoService, RefertoService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
