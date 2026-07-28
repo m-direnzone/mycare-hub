@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { fetchMioProfiloFromDb } from "@/src/lib/profilo";
 import {
   getCurrentUser,
   logout,
@@ -29,6 +30,14 @@ export default function DashboardPage() {
 
         if (needsPasswordChange(user)) {
           router.replace("/cambia-password");
+          return;
+        }
+
+        const profilo = await fetchMioProfiloFromDb();
+        if (!active) return;
+
+        if (profilo?.ruolo === "admin") {
+          router.replace("/admin");
           return;
         }
 

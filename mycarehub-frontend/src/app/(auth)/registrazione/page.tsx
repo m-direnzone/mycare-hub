@@ -4,18 +4,17 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PazienteRegistrazioneDto } from "@/src/types/dto";
+import type { RuoloUtente } from "@/src/types/enums";
 import {
-  CODICE_FISCALE_GIA_REGISTRATO_MESSAGE,
   isCodiceFiscaleTakenError,
   isExistingAccountError,
+  lookupRuoloAccount,
   mapAuthErrorMessage,
+  messageForExistingRuolo,
   registerPaziente,
 } from "@/src/lib/supabase/client";
 
 const CF_REGEX = /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/;
-
-const EXISTING_EMAIL_MESSAGE =
-  "Esiste già un account con questa email. Se sei un medico creato dall'amministrazione, accedi con la password temporanea ricevuta via email: al primo accesso ti verrà chiesto di impostarne una nuova.";
 
 export default function RegistrazionePage() {
   const router = useRouter();
@@ -39,12 +38,35 @@ export default function RegistrazionePage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function resolveExistingMessage(
+    kind: "email" | "cf",
+    email: string,
+    codiceFiscale: string,
+    err: unknown
+  ): Promise<string> {
+    const fromError =
+      err && typeof err === "object" && "ruolo" in err
+        ? ((err as { ruolo?: RuoloUtente | null }).ruolo ?? null)
+        : null;
+
+    const ruolo =
+      fromError ??
+      (await lookupRuoloAccount({
+        email: kind === "email" ? email : null,
+        codiceFiscale: kind === "cf" ? codiceFiscale : null,
+      }));
+
+    return messageForExistingRuolo(ruolo, kind);
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setInfo(null);
 
     const codiceFiscale = form.codiceFiscale.trim().toUpperCase();
+    const email = form.email.trim();
+
     if (!CF_REGEX.test(codiceFiscale)) {
       setError("Formato codice fiscale non valido.");
       return;
@@ -55,7 +77,7 @@ export default function RegistrazionePage() {
     try {
       await registerPaziente({
         ...form,
-        email: form.email.trim(),
+        email,
         nome: form.nome.trim(),
         cognome: form.cognome.trim(),
         codiceFiscale,
@@ -65,9 +87,9 @@ export default function RegistrazionePage() {
       router.replace("/dashboard");
     } catch (err) {
       if (isCodiceFiscaleTakenError(err)) {
-        setInfo(CODICE_FISCALE_GIA_REGISTRATO_MESSAGE);
+        setInfo(await resolveExistingMessage("cf", email, codiceFiscale, err));
       } else if (isExistingAccountError(err)) {
-        setInfo(EXISTING_EMAIL_MESSAGE);
+        setInfo(await resolveExistingMessage("email", email, codiceFiscale, err));
       } else {
         setError(
           mapAuthErrorMessage(err, "Registrazione non riuscita. Riprova.")
@@ -141,30 +163,32 @@ export default function RegistrazionePage() {
           />
         </label>
 
-        <label className="block space-y-1.5 text-sm">
-          <span className="font-medium">Data di nascita</span>
-          <input
-            className="auth-field"
-            type="date"
-            name="dataNascita"
-            required
-            value={form.dataNascita}
-            onChange={(e) => updateField("dataNascita", e.target.value)}
-          />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Data di nascita</span>
+            <input
+              className="auth-field"
+              type="date"
+              name="dataNascita"
+              required
+              value={form.dataNascita}
+              onChange={(e) => updateField("dataNascita", e.target.value)}
+            />
+          </label>
 
-        <label className="block space-y-1.5 text-sm">
-          <span className="font-medium">Telefono (opzionale)</span>
-          <input
-            className="auth-field"
-            type="tel"
-            name="telefono"
-            autoComplete="tel"
-            maxLength={20}
-            value={form.telefono ?? ""}
-            onChange={(e) => updateField("telefono", e.target.value)}
-          />
-        </label>
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Telefono (opzionale)</span>
+            <input
+              className="auth-field"
+              type="tel"
+              name="telefono"
+              autoComplete="tel"
+              maxLength={20}
+              value={form.telefono ?? ""}
+              onChange={(e) => updateField("telefono", e.target.value)}
+            />
+          </label>
+        </div>
 
         <label className="block space-y-1.5 text-sm">
           <span className="font-medium">Email</span>

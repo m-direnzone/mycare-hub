@@ -10,6 +10,18 @@ if (!API_BASE_URL) {
 
 const RESOLVED_API_BASE_URL = API_BASE_URL;
 
+/** Evita /api/api/... se NEXT_PUBLIC_API_BASE_URL termina già con /api. */
+function joinApiUrl(baseUrl: string, path: string): string {
+  const base = baseUrl.replace(/\/$/, "");
+  let normalizedPath = path.replace(/^\//, "");
+
+  if (base.endsWith("/api") && normalizedPath.startsWith("api/")) {
+    normalizedPath = normalizedPath.slice(4);
+  }
+
+  return `${base}/${normalizedPath}`;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
@@ -70,7 +82,7 @@ export async function apiFetch<T>(
 
   const url = path.startsWith("http")
     ? path
-    : `${RESOLVED_API_BASE_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+    : joinApiUrl(RESOLVED_API_BASE_URL, path);
 
   const response = await fetch(url, {
     ...rest,
@@ -91,12 +103,17 @@ export async function apiFetch<T>(
     const message =
       typeof payload === "object" &&
       payload !== null &&
-      "title" in payload &&
-      typeof (payload as { title: unknown }).title === "string"
-        ? (payload as { title: string }).title
-        : typeof payload === "string" && payload.length > 0
-          ? payload
-          : `API request failed with status ${response.status}`;
+      "message" in payload &&
+      typeof (payload as { message: unknown }).message === "string"
+        ? (payload as { message: string }).message
+        : typeof payload === "object" &&
+            payload !== null &&
+            "title" in payload &&
+            typeof (payload as { title: unknown }).title === "string"
+          ? (payload as { title: string }).title
+          : typeof payload === "string" && payload.length > 0
+            ? payload
+            : `API request failed with status ${response.status}`;
 
     throw new ApiError(response.status, message, payload);
   }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { resolveHomePathFromProfilo } from "@/src/lib/routing";
 import {
   login,
   needsPasswordChange,
@@ -28,7 +29,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.replace("/dashboard");
+      router.replace(await resolveHomePathFromProfilo());
     } catch (err) {
       const message =
         err instanceof Error

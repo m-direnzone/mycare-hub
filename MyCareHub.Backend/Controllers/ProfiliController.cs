@@ -65,6 +65,49 @@ public class ProfiliController : ControllerBase
     }
 
     /// <summary>
+    /// Crea un nuovo medico (Auth + profilo + dettagli professionali). Richiede Service Role Key.
+    /// </summary>
+    [HttpPost("medici")]
+    [Authorize(Policy = nameof(RuoloUtente.Admin))]
+    [ProducesResponseType(typeof(MedicoCreateResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<MedicoCreateResponseDto>> CreaMedico(
+        [FromBody] MedicoOnboardingDto dto,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        try
+        {
+            var created = await _profiloService.CreaMedicoAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(GetMioProfilo), created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var message = ex.Message;
+            if (message.Contains("ServiceRoleKey", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("service role", StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { message });
+            }
+
+            if (message.Contains("già", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("already", StringComparison.OrdinalIgnoreCase))
+            {
+                return Conflict(new { message });
+            }
+
+            return BadRequest(new { message });
+        }
+    }
+
+    /// <summary>
     /// Configura i dettagli clinici e professionali di un medico (onboarding amministrativo).
     /// </summary>
     [HttpPost("medici/{medicoId:guid}/onboarding")]

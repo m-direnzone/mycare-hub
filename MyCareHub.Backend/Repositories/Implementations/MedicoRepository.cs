@@ -34,6 +34,17 @@ public class MedicoRepository : IMedicoRepository
         return response.Models.FirstOrDefault();
     }
 
+    public async Task<bool> ExistsByNumeroAlboAsync(string numeroIscrizioneAlbo)
+    {
+        var response = await _supabase
+            .From<MedicoDettaglio>()
+            .Filter(x => x.NumeroIscrizioneAlbo!, Operator.Equals, numeroIscrizioneAlbo)
+            .Limit(1)
+            .Get();
+
+        return response.Models.Count > 0;
+    }
+
     public async Task<bool> UpdateMedicoDettagliAsync(MedicoDettaglio dettaglio)
     {
         var response = await _supabase

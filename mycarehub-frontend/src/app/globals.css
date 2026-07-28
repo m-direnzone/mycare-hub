@@ -70,7 +70,8 @@ body {
 .auth-shell {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 100dvh;
   display: grid;
   place-items: center;
@@ -110,7 +111,7 @@ body {
 }
 
 .auth-panel {
-  width: min(100%, 28rem);
+  width: min(100%, 32rem);
   padding: 2rem 1.75rem;
   border: 1px solid var(--border);
   border-radius: 1.25rem;
@@ -118,6 +119,10 @@ body {
   backdrop-filter: blur(14px);
   box-shadow: 0 24px 60px rgba(20, 48, 40, 0.08);
   animation: auth-fade-up 0.55s ease-out both;
+}
+
+.auth-panel-wide {
+  width: min(100%, 48rem);
 }
 
 .auth-brand {

@@ -1,4 +1,5 @@
 using MyCareHub.Backend.Entities;
+using MyCareHub.Backend.Entities.Enums;
 using MyCareHub.Backend.Repositories.Interfaces;
 using static Supabase.Postgrest.Constants;
 
@@ -37,7 +38,7 @@ public class ProfiloRepository : IProfiloRepository
 
     public async Task<bool> UpdateAsync(Profilo profilo)
     {
-        // Il ruolo non è aggiornabile da qui: assegnazione solo via trigger/Auth metadata (admin).
+        // Il ruolo non è aggiornabile da qui: assegnazione solo via UpdateRuoloAsync / Auth.
         var response = await _supabase
             .From<Profilo>()
             .Filter(x => x.Id!, Operator.Equals, profilo.Id)
@@ -46,6 +47,18 @@ public class ProfiloRepository : IProfiloRepository
             .Set(x => x.CodiceFiscale!, profilo.CodiceFiscale)
             .Set(x => x.DataNascita!, profilo.DataNascita)
             .Set(x => x.Telefono!, profilo.Telefono)
+            .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
+            .Update();
+
+        return response.Models.Count > 0;
+    }
+
+    public async Task<bool> UpdateRuoloAsync(Guid id, RuoloUtente ruolo)
+    {
+        var response = await _supabase
+            .From<Profilo>()
+            .Filter(x => x.Id!, Operator.Equals, id)
+            .Set(x => x.Ruolo!, ruolo)
             .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
             .Update();
 

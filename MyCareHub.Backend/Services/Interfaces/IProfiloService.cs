@@ -11,6 +11,13 @@ public interface IProfiloService
     Task<ProfiloDto?> GetProfiloCompletoAsync(Guid utenteId);
 
     /// <summary>
+    /// Crea Auth user medico + profilo + dettagli professionali (flusso admin completo).
+    /// </summary>
+    Task<MedicoCreateResponseDto> CreaMedicoAsync(
+        MedicoOnboardingDto dto,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Completa l'onboarding del medico inserendo i dettagli specialistici nel DB.
     /// </summary>
     Task<bool> CompletaOnboardingMedicoAsync(Guid medicoId, MedicoOnboardingDto dto);

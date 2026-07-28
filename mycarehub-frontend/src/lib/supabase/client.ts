@@ -1,5 +1,6 @@
 import { createClient, type AuthError, type SupabaseClient, type User } from "@supabase/supabase-js";
 import type { PazienteRegistrazioneDto } from "@/src/types/dto";
+import type { RuoloUtente } from "@/src/types/enums";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,6 +25,21 @@ export function needsPasswordChange(user: User | null | undefined): boolean {
     user.app_metadata?.must_change_password === true ||
     user.user_metadata?.must_change_password === true
   );
+}
+
+export function getUserRuolo(user: User | null | undefined): RuoloUtente | null {
+  if (!user) return null;
+
+  const raw =
+    user.app_metadata?.ruolo ??
+    user.app_metadata?.role ??
+    user.user_metadata?.ruolo;
+
+  if (raw === "paziente" || raw === "medico" || raw === "admin") {
+    return raw;
+  }
+
+  return null;
 }
 
 export function isExistingAccountError(error: unknown): boolean {
@@ -61,6 +77,33 @@ export function isCodiceFiscaleTakenError(error: unknown): boolean {
 export const CODICE_FISCALE_GIA_REGISTRATO_MESSAGE =
   "Risulti già registrato: questo codice fiscale è già presente nel sistema. Non creare un nuovo account — effettua il login con le credenziali usate alla prima registrazione.";
 
+export function messageForExistingRuolo(
+  ruolo: RuoloUtente | null | undefined,
+  kind: "email" | "cf"
+): string {
+  if (ruolo === "medico") {
+    return kind === "email"
+      ? "Esiste già un account medico con questa email creato dall'amministrazione. Accedi con la password temporanea ricevuta: al primo accesso ti verrà chiesto di impostarne una nuova."
+      : "Risulti già registrato come medico dall'amministrazione. Non creare un nuovo account — effettua il login con la password temporanea ricevuta: al primo accesso ti verrà chiesto di impostarne una nuova.";
+  }
+
+  if (ruolo === "paziente") {
+    return kind === "email"
+      ? "Esiste già un account paziente con questa email. Accedi con le tue credenziali oppure recupera la password."
+      : "Risulti già registrato come paziente. Non creare un nuovo account — effettua il login con le credenziali usate alla prima registrazione.";
+  }
+
+  if (ruolo === "admin") {
+    return kind === "email"
+      ? "Esiste già un account con questa email. Accedi con le tue credenziali."
+      : "Questo codice fiscale risulta già associato a un account. Effettua il login.";
+  }
+
+  return kind === "email"
+    ? "Esiste già un account con questa email. Accedi oppure recupera la password."
+    : CODICE_FISCALE_GIA_REGISTRATO_MESSAGE;
+}
+
 export function mapAuthErrorMessage(error: unknown, fallback: string): string {
   if (isCodiceFiscaleTakenError(error)) {
     return CODICE_FISCALE_GIA_REGISTRATO_MESSAGE;
@@ -85,6 +128,27 @@ export function mapAuthErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+export async function lookupRuoloAccount(options: {
+  email?: string | null;
+  codiceFiscale?: string | null;
+}): Promise<RuoloUtente | null> {
+  const { data, error } = await supabase.rpc("lookup_ruolo_account", {
+    p_email: options.email?.trim() || null,
+    p_cf: options.codiceFiscale?.trim().toUpperCase() || null,
+  });
+
+  if (error) {
+    console.warn("lookup_ruolo_account failed:", error.message);
+    return null;
+  }
+
+  if (data === "paziente" || data === "medico" || data === "admin") {
+    return data;
+  }
+
+  return null;
+}
+
 async function assertCodiceFiscaleDisponibile(codiceFiscale: string) {
   const { data, error } = await supabase.rpc("is_codice_fiscale_disponibile", {
     p_cf: codiceFiscale,
@@ -97,10 +161,12 @@ async function assertCodiceFiscaleDisponibile(codiceFiscale: string) {
   }
 
   if (data === false) {
-    throw Object.assign(new Error(CODICE_FISCALE_GIA_REGISTRATO_MESSAGE), {
+    const ruolo = await lookupRuoloAccount({ codiceFiscale });
+    throw Object.assign(new Error(messageForExistingRuolo(ruolo, "cf")), {
       name: "AuthApiError",
       status: 409,
       code: "codice_fiscale_exists",
+      ruolo,
     });
   }
 }

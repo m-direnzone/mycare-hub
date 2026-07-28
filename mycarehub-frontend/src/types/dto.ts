@@ -33,6 +33,14 @@ export interface MedicoOnboardingDto {
   tariffaVisita: number;
 }
 
+/** Risposta dopo creazione completa di un medico. */
+export interface MedicoCreateResponseDto {
+  id: string;
+  email: string;
+  passwordTemporanea: string;
+  messaggio: string;
+}
+
 /** Payload omnicomprensivo restituito dopo il login. */
 export interface ProfiloDto {
   id: string;

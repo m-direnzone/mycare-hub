@@ -8,6 +8,7 @@ import {
   getCurrentUser,
   needsPasswordChange,
 } from "@/src/lib/supabase/client";
+import { resolveHomePathFromProfilo } from "@/src/lib/routing";
 
 export default function CambiaPasswordPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function CambiaPasswordPage() {
         }
 
         if (!needsPasswordChange(user)) {
-          router.replace("/dashboard");
+          router.replace(await resolveHomePathFromProfilo());
           return;
         }
       } finally {
@@ -62,7 +63,7 @@ export default function CambiaPasswordPage() {
 
     try {
       await changePasswordAndClearTempFlag(password);
-      router.replace("/dashboard");
+      router.replace(await resolveHomePathFromProfilo());
     } catch (err) {
       const message =
         err instanceof Error

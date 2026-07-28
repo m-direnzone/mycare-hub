@@ -103,6 +103,7 @@ builder.Services.AddScoped<ISlotDisponibilitaRepository, SlotDisponibilitaReposi
 builder.Services.AddScoped<IPrenotazioneRepository, PrenotazioneRepository>();
 builder.Services.AddScoped<IRefertoMedicoRepository, RefertoMedicoRepository>();
 
+builder.Services.AddScoped<ISupabaseAuthAdminService, SupabaseAuthAdminService>();
 builder.Services.AddScoped<IProfiloService, ProfiloService>();
 builder.Services.AddScoped<ISlotService, SlotService>();
 builder.Services.AddScoped<IPrenotazioneService, PrenotazioneService>();
