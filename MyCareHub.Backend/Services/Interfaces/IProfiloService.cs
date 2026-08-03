@@ -36,4 +36,9 @@ public interface IProfiloService
     /// Elenco medici attivi per specializzazione (ricerca paziente).
     /// </summary>
     Task<IEnumerable<ProfiloDto>> GetMediciBySpecializzazioneAsync(string specializzazione);
+
+    /// <summary>
+    /// Ricerca medici attivi filtrando per specializzazione e/o nome.
+    /// </summary>
+    Task<IEnumerable<ProfiloDto>> CercaMediciAsync(string? specializzazione = null, string? nome = null);
 }

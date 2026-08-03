@@ -38,6 +38,21 @@ public class SlotService : ISlotService
         return slots.Select(MapSlot);
     }
 
+    public async Task<IEnumerable<SlotDto>> GetAgendaMedicoAsync(
+        Guid medicoId,
+        DateTimeOffset? dataInizio = null,
+        DateTimeOffset? dataFine = null)
+    {
+        var inizio = dataInizio ?? DateTimeOffset.UtcNow.AddDays(-7);
+
+        var slots = await _slotRepository.GetByMedicoIdAsync(
+            medicoId,
+            inizio,
+            dataFine);
+
+        return slots.Select(MapSlot);
+    }
+
     public async Task<bool> GeneraAgendaBulkAsync(SlotCreationBulkDto dto)
     {
         if (dto.SlotRichiesti.Count == 0)

@@ -17,7 +17,7 @@ public class RefertoMedicoRepository : IRefertoMedicoRepository
     {
         var response = await _supabase
             .From<RefertoMedico>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Limit(1)
             .Get();
 
@@ -28,7 +28,7 @@ public class RefertoMedicoRepository : IRefertoMedicoRepository
     {
         var response = await _supabase
             .From<RefertoMedico>()
-            .Filter(x => x.PazienteId!, Operator.Equals, pazienteId)
+            .Filter(x => x.PazienteId!, Operator.Equals, pazienteId.ToString())
             .Order(x => x.DataEmissione!, Ordering.Descending)
             .Get();
 
@@ -39,7 +39,7 @@ public class RefertoMedicoRepository : IRefertoMedicoRepository
     {
         var response = await _supabase
             .From<RefertoMedico>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId)
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
             .Order(x => x.DataEmissione!, Ordering.Descending)
             .Get();
 
@@ -69,7 +69,7 @@ public class RefertoMedicoRepository : IRefertoMedicoRepository
 
         await _supabase
             .From<RefertoMedico>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Delete();
 
         return true;

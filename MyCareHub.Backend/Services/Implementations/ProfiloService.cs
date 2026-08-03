@@ -195,21 +195,15 @@ public class ProfiloService : IProfiloService
 
     public async Task<IEnumerable<ProfiloDto>> GetMediciBySpecializzazioneAsync(string specializzazione)
     {
-        if (string.IsNullOrWhiteSpace(specializzazione))
-            return [];
+        return await CercaMediciAsync(specializzazione: specializzazione);
+    }
 
-        var medici = (await _medicoRepository.GetMediciBySpecializzazioneAsync(specializzazione.Trim())).ToList();
-        if (medici.Count == 0)
-            return [];
-
-        var result = new List<ProfiloDto>(medici.Count);
-        foreach (var medico in medici)
-        {
-            var dettagli = await _medicoRepository.GetDettagliByIdAsync(medico.Id);
-            result.Add(MapProfilo(medico, dettagli is null ? null : MapDettagli(dettagli)));
-        }
-
-        return result;
+    public async Task<IEnumerable<ProfiloDto>> CercaMediciAsync(
+        string? specializzazione = null,
+        string? nome = null)
+    {
+        var medici = await _medicoRepository.GetMediciAttiviAsync(specializzazione, nome);
+        return medici.Select(m => MapProfilo(m.Profilo, MapDettagli(m.Dettagli)));
     }
 
     private static ProfiloDto MapProfilo(Profilo profilo, MedicoDettaglioDto? dettagliMedico) => new()

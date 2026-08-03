@@ -17,7 +17,7 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
     {
         var response = await _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Limit(1)
             .Get();
 
@@ -32,7 +32,7 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
     {
         var query = _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId);
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString());
 
         if (dataInizio.HasValue)
             query = query.Filter(x => x.DataOraInizio!, Operator.GreaterThanOrEqual, dataInizio.Value);
@@ -41,7 +41,7 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
             query = query.Filter(x => x.DataOraInizio!, Operator.LessThanOrEqual, dataFine.Value);
 
         if (isPrenotato.HasValue)
-            query = query.Filter(x => x.IsPrenotato!, Operator.Equals, isPrenotato.Value);
+            query = query.Filter(x => x.IsPrenotato!, Operator.Equals, isPrenotato.Value ? "true" : "false");
 
         var response = await query
             .Order(x => x.DataOraInizio!, Ordering.Ascending)
@@ -77,7 +77,7 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
     {
         var response = await _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Set(x => x.IsPrenotato!, isPrenotato)
             .Update();
 
@@ -88,8 +88,8 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
     {
         var response = await _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.Id!, Operator.Equals, id)
-            .Filter(x => x.IsPrenotato!, Operator.Equals, false)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
+            .Filter(x => x.IsPrenotato!, Operator.Equals, "false")
             .Set(x => x.IsPrenotato!, true)
             .Update();
 
@@ -104,7 +104,7 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
 
         await _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Delete();
 
         return true;

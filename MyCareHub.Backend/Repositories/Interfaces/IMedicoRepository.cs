@@ -9,5 +9,8 @@ public interface IMedicoRepository
     Task<bool> UpdateMedicoDettagliAsync(MedicoDettaglio dettaglio);
     Task<bool> ExistsByNumeroAlboAsync(string numeroIscrizioneAlbo);
     Task<IEnumerable<Profilo>> GetMediciBySpecializzazioneAsync(string specializzazione);
+    Task<IEnumerable<(Profilo Profilo, MedicoDettaglio Dettagli)>> GetMediciAttiviAsync(
+        string? specializzazione = null,
+        string? nome = null);
     Task<IEnumerable<MedicoDettaglio>> GetAllAttiviAsync();
 }

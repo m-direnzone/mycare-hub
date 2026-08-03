@@ -12,6 +12,11 @@ public interface ISlotService
         DateTimeOffset? dataInizio = null,
         DateTimeOffset? dataFine = null);
 
+    Task<IEnumerable<SlotDto>> GetAgendaMedicoAsync(
+        Guid medicoId,
+        DateTimeOffset? dataInizio = null,
+        DateTimeOffset? dataFine = null);
+
     /// <summary>
     /// Genera massivamente gli slot orari per l'agenda del medico.
     /// </summary>

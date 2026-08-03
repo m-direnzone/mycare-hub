@@ -18,7 +18,7 @@ public class ProfiloRepository : IProfiloRepository
     {
         var response = await _supabase
             .From<Profilo>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Limit(1)
             .Get();
 
@@ -41,7 +41,7 @@ public class ProfiloRepository : IProfiloRepository
         // Il ruolo non è aggiornabile da qui: assegnazione solo via UpdateRuoloAsync / Auth.
         var response = await _supabase
             .From<Profilo>()
-            .Filter(x => x.Id!, Operator.Equals, profilo.Id)
+            .Filter(x => x.Id!, Operator.Equals, profilo.Id.ToString())
             .Set(x => x.Nome!, profilo.Nome)
             .Set(x => x.Cognome!, profilo.Cognome)
             .Set(x => x.CodiceFiscale!, profilo.CodiceFiscale)
@@ -57,7 +57,7 @@ public class ProfiloRepository : IProfiloRepository
     {
         var response = await _supabase
             .From<Profilo>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Set(x => x.Ruolo!, ruolo)
             .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
             .Update();

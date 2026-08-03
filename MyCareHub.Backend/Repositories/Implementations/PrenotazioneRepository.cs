@@ -18,7 +18,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
     {
         var response = await _supabase
             .From<Prenotazione>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Limit(1)
             .Get();
 
@@ -29,7 +29,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
     {
         var response = await _supabase
             .From<Prenotazione>()
-            .Filter(x => x.PazienteId!, Operator.Equals, pazienteId)
+            .Filter(x => x.PazienteId!, Operator.Equals, pazienteId.ToString())
             .Order(x => x.CreatoAt!, Ordering.Descending)
             .Get();
 
@@ -45,7 +45,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
         {
             var response = await _supabase
                 .From<Prenotazione>()
-                .Filter(x => x.MedicoId!, Operator.Equals, medicoId)
+                .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
                 .Order(x => x.CreatoAt!, Ordering.Ascending)
                 .Get();
 
@@ -55,7 +55,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
         // Agenda giornaliera/settimanale: filtra tramite gli slot nel range richiesto
         var slotQuery = _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId);
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString());
 
         if (dataInizio.HasValue)
             slotQuery = slotQuery.Filter(x => x.DataOraInizio!, Operator.GreaterThanOrEqual, dataInizio.Value);
@@ -65,7 +65,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
 
         var slotsResponse = await slotQuery.Get();
         var slotIds = slotsResponse.Models
-            .Select(s => s.Id)
+            .Select(s => s.Id.ToString())
             .Distinct()
             .ToList();
 
@@ -74,7 +74,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
 
         var prenotazioniResponse = await _supabase
             .From<Prenotazione>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId)
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
             .Filter(x => x.SlotId!, Operator.In, slotIds)
             .Get();
 
@@ -104,7 +104,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
     {
         var response = await _supabase
             .From<Prenotazione>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Set(x => x.Stato!, nuovoStato)
             .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
             .Update();
@@ -116,7 +116,7 @@ public class PrenotazioneRepository : IPrenotazioneRepository
     {
         var response = await _supabase
             .From<Prenotazione>()
-            .Filter(x => x.Id!, Operator.Equals, id)
+            .Filter(x => x.Id!, Operator.Equals, id.ToString())
             .Set(x => x.NoteMediche!, noteMediche)
             .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
             .Update();

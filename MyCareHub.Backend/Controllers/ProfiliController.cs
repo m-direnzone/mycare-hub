@@ -170,18 +170,15 @@ public class ProfiliController : ControllerBase
     }
 
     /// <summary>
-    /// Ricerca medici attivi per specializzazione (lato paziente / autenticato).
+    /// Ricerca medici attivi per specializzazione e/o nome (lato paziente / autenticato).
     /// </summary>
     [HttpGet("medici")]
     [ProducesResponseType(typeof(IEnumerable<ProfiloDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<IEnumerable<ProfiloDto>>> GetMediciBySpecializzazione(
-        [FromQuery] string specializzazione)
+    public async Task<ActionResult<IEnumerable<ProfiloDto>>> CercaMedici(
+        [FromQuery] string? specializzazione = null,
+        [FromQuery] string? nome = null)
     {
-        if (string.IsNullOrWhiteSpace(specializzazione))
-            return BadRequest(new { message = "Il parametro 'specializzazione' è obbligatorio." });
-
-        var medici = await _profiloService.GetMediciBySpecializzazioneAsync(specializzazione);
+        var medici = await _profiloService.CercaMediciAsync(specializzazione, nome);
         return Ok(medici);
     }
 }

@@ -38,6 +38,28 @@ public class SlotController : ControllerBase
     }
 
     /// <summary>
+    /// Agenda completa (liberi + prenotati) del medico autenticato.
+    /// </summary>
+    [HttpGet("mio")]
+    [Authorize(Roles = $"{nameof(RuoloUtente.Medico)},medico")]
+    [ProducesResponseType(typeof(IEnumerable<SlotDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IEnumerable<SlotDto>>> GetMiaAgenda(
+        [FromQuery] DateTimeOffset? dataInizio = null,
+        [FromQuery] DateTimeOffset? dataFine = null)
+    {
+        var medicoId = User.GetUserId();
+        if (medicoId is null)
+            return Unauthorized();
+
+        if (dataFine.HasValue && dataInizio.HasValue && dataFine < dataInizio)
+            return BadRequest(new { message = "dataFine deve essere successiva a dataInizio." });
+
+        var slots = await _slotService.GetAgendaMedicoAsync(medicoId.Value, dataInizio, dataFine);
+        return Ok(slots);
+    }
+
+    /// <summary>
     /// Genera massivamente nuovi slot orari nel calendario del medico (Medico/Admin).
     /// </summary>
     [HttpPost("bulk")]
