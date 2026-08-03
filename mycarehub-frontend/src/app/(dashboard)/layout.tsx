@@ -12,6 +12,8 @@ import {
   needsPasswordChange,
 } from "@/src/lib/supabase/client";
 import type { ProfiloDto } from "@/src/types/dto";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function DashboardLayout({
   children,
@@ -131,6 +133,17 @@ export default function DashboardLayout({
           <div className="dash-content">{children}</div>
         </div>
       </div>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        theme="colored"
+        limit={3}
+        style={{ width: "min(22rem, calc(100vw - 1.5rem))" }}
+      />
     </DashboardProvider>
   );
 }

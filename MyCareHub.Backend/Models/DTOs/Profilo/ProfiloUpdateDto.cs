@@ -16,7 +16,9 @@ public class ProfiloUpdateDto
     [StringLength(100, ErrorMessage = "Il cognome non può superare i 100 caratteri.")]
     public string Cognome { get; set; } = null!;
 
-    [Phone(ErrorMessage = "Formato telefono non valido.")]
+    [RegularExpression(
+        @"^(\+?[0-9][\d\s.\-]{5,18}[0-9])?$",
+        ErrorMessage = "Formato telefono non valido.")]
     [StringLength(20, ErrorMessage = "Il telefono non può superare i 20 caratteri.")]
     public string? Telefono { get; set; }
 }

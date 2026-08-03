@@ -7,7 +7,7 @@ namespace MyCareHub.Backend.Entities;
 [Table("prenotazioni")]
 public class Prenotazione : BaseModel
 {
-    [PrimaryKey("id")]
+    [PrimaryKey("id", false)]
     public Guid Id { get; set; }
 
     [Column("paziente_id")]

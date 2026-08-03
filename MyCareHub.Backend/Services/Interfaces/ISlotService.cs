@@ -5,10 +5,11 @@ namespace MyCareHub.Backend.Services.Interfaces;
 public interface ISlotService
 {
     /// <summary>
-    /// Recupera solo gli slot liberi di un medico per la prenotazione del paziente.
+    /// Fasce orarie standard (30 min, 07–13 / 14–18) libere per medico e paziente.
     /// </summary>
     Task<IEnumerable<SlotDto>> GetSlotDisponibiliMedicoAsync(
         Guid medicoId,
+        Guid? pazienteId = null,
         DateTimeOffset? dataInizio = null,
         DateTimeOffset? dataFine = null);
 

@@ -39,17 +39,19 @@ public class ProfiloRepository : IProfiloRepository
     public async Task<bool> UpdateAsync(Profilo profilo)
     {
         // Il ruolo non è aggiornabile da qui: assegnazione solo via UpdateRuoloAsync / Auth.
-        var response = await _supabase
+        var query = _supabase
             .From<Profilo>()
             .Filter(x => x.Id!, Operator.Equals, profilo.Id.ToString())
             .Set(x => x.Nome!, profilo.Nome)
             .Set(x => x.Cognome!, profilo.Cognome)
             .Set(x => x.CodiceFiscale!, profilo.CodiceFiscale)
             .Set(x => x.DataNascita!, profilo.DataNascita)
-            .Set(x => x.Telefono!, profilo.Telefono)
-            .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow)
-            .Update();
+            .Set(x => x.AggiornatoAt!, DateTimeOffset.UtcNow);
 
+        // Postgrest .Set non gestisce bene null su string?: usare stringa vuota e normalizzare a DB.
+        query = query.Set(x => x.Telefono!, profilo.Telefono ?? string.Empty);
+
+        var response = await query.Update();
         return response.Models.Count > 0;
     }
 

@@ -76,3 +76,51 @@ export async function fetchMioProfiloFromDb(): Promise<ProfiloDto | null> {
     ruolo,
   };
 }
+
+/**
+ * Aggiorna anagrafica del profilo autenticato via Supabase (RLS: profili_update_own).
+ * Vale per paziente e medico: il backend con publishable key non ha auth.uid().
+ */
+export async function updateMioProfiloFromDb(payload: {
+  nome: string;
+  cognome: string;
+  telefono?: string | null;
+}): Promise<ProfiloDto> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Sessione non valida. Effettua di nuovo l'accesso.");
+  }
+
+  const nome = payload.nome.trim();
+  const cognome = payload.cognome.trim();
+  const telefono = payload.telefono?.trim() || null;
+
+  if (!nome || !cognome) {
+    throw new Error("Nome e cognome sono obbligatori.");
+  }
+
+  const { data, error } = await supabase
+    .from("profili")
+    .update({
+      nome,
+      cognome,
+      telefono,
+      aggiornato_at: new Date().toISOString(),
+    })
+    .eq("id", user.id)
+    .select("id, nome, cognome, codice_fiscale, data_nascita, telefono, ruolo")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Aggiornamento non riuscito.");
+  }
+
+  if (!data) {
+    throw new Error("Profilo non trovato o non aggiornabile.");
+  }
+
+  return mapProfilo(data as ProfiloRow);
+}

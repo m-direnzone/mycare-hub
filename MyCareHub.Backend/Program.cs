@@ -15,8 +15,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Supabase:Url mancante in configurazione.");
-var supabaseKey = builder.Configuration["Supabase:Key"]
-    ?? throw new InvalidOperationException("Supabase:Key mancante in configurazione.");
+// Preferire Service Role: le policy RLS su profili richiedono auth.uid() e la
+// publishable/anon key senza JWT utente non può leggere/aggiornare le righe.
+var serviceRoleKey = builder.Configuration["Supabase:ServiceRoleKey"];
+var usingServiceRole = !string.IsNullOrWhiteSpace(serviceRoleKey);
+var supabaseKey = usingServiceRole
+    ? serviceRoleKey!
+    : builder.Configuration["Supabase:Key"]
+        ?? throw new InvalidOperationException("Supabase:Key mancante in configurazione.");
 var jwtIssuer = builder.Configuration["Supabase:JwtIssuer"]
     ?? $"{supabaseUrl}/auth/v1";
 var jwtAudience = builder.Configuration["Supabase:JwtAudience"] ?? "authenticated";
@@ -25,6 +31,7 @@ var jwksUrl = builder.Configuration["Supabase:JwksUrl"]
 var jwtSecret = builder.Configuration["Supabase:JwtSecret"];
 
 builder.Services.AddHttpClient();
+builder.Services.AddHttpContextAccessor();
 
 var signingKeys = new List<SecurityKey>();
 using (var httpClient = new HttpClient())
@@ -57,13 +64,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         options.Events = new JwtBearerEvents
         {
-            OnTokenValidated = context =>
+            OnTokenValidated = async context =>
             {
                 if (context.Principal?.Identity is not ClaimsIdentity identity)
-                    return Task.CompletedTask;
+                    return;
 
-                MapAppMetadataRole(context, identity);
-                return Task.CompletedTask;
+                await MapRuoloClaimsAsync(context, identity);
             }
         };
     });
@@ -84,13 +90,25 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(nameof(RuoloUtente.Admin), "admin"));
 });
 
-builder.Services.AddScoped<Client>(_ =>
+builder.Services.AddScoped<Client>(sp =>
 {
     var options = new SupabaseOptions
     {
         AutoRefreshToken = false,
         AutoConnectRealtime = false
     };
+
+    // Senza service role, inoltra il JWT dell'utente così RLS (auth.uid()) funziona.
+    if (!usingServiceRole)
+    {
+        var http = sp.GetService<IHttpContextAccessor>()?.HttpContext;
+        var authorization = http?.Request.Headers.Authorization.ToString();
+        if (!string.IsNullOrWhiteSpace(authorization) &&
+            authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            options.Headers["Authorization"] = authorization;
+        }
+    }
 
     var client = new Client(supabaseUrl, supabaseKey, options);
     client.InitializeAsync().GetAwaiter().GetResult();
@@ -152,33 +170,148 @@ app.UseAuthorization();
 app.MapControllers();
 app.Run();
 
-static void MapAppMetadataRole(TokenValidatedContext context, ClaimsIdentity identity)
+static async Task MapRuoloClaimsAsync(TokenValidatedContext context, ClaimsIdentity identity)
 {
-    string? ruolo = null;
+    if (HasAppRuoloClaim(identity))
+        return;
 
-    var appMetadataClaim = context.Principal?.FindFirst("app_metadata")?.Value;
-    if (!string.IsNullOrWhiteSpace(appMetadataClaim))
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(appMetadataClaim);
-            if (doc.RootElement.TryGetProperty("ruolo", out var ruoloProp))
-                ruolo = ruoloProp.GetString();
-            else if (doc.RootElement.TryGetProperty("role", out var roleProp))
-                ruolo = roleProp.GetString();
-        }
-        catch (JsonException)
-        {
-        }
-    }
-
-    ruolo ??= context.Principal?.FindFirst("ruolo")?.Value;
+    var ruolo = ExtractRuoloFromToken(context);
+    if (string.IsNullOrWhiteSpace(ruolo))
+        ruolo = await LookupRuoloFromProfiloAsync(context);
 
     if (string.IsNullOrWhiteSpace(ruolo))
         return;
 
+    AddRuoloClaims(identity, ruolo);
+}
+
+static bool HasAppRuoloClaim(ClaimsIdentity identity)
+{
+    static bool IsAppRuolo(string value) =>
+        value is "paziente" or "Paziente" or "medico" or "Medico" or "admin" or "Admin";
+
+    return identity.FindAll(ClaimTypes.Role).Any(c => IsAppRuolo(c.Value))
+        || identity.FindAll("role").Any(c => IsAppRuolo(c.Value))
+        || identity.FindAll("ruolo").Any(c => IsAppRuolo(c.Value));
+}
+
+static void AddRuoloClaims(ClaimsIdentity identity, string ruolo)
+{
+    var normalized = NormalizeRuolo(ruolo);
     identity.AddClaim(new Claim(ClaimTypes.Role, ruolo));
-    identity.AddClaim(new Claim(ClaimTypes.Role, NormalizeRuolo(ruolo)));
+    if (!string.Equals(normalized, ruolo, StringComparison.Ordinal))
+        identity.AddClaim(new Claim(ClaimTypes.Role, normalized));
+
+    // Compatibilità con token che espongono già "role"/"ruolo" lowercase.
+    var lower = ruolo.ToLowerInvariant();
+    if (lower is "paziente" or "medico" or "admin")
+        identity.AddClaim(new Claim(ClaimTypes.Role, lower));
+}
+
+static string? ExtractRuoloFromToken(TokenValidatedContext context)
+{
+    // 1) Payload JWT grezzo (affidabile con JsonWebTokenHandler)
+    if (context.SecurityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jwt)
+    {
+        var fromApp = ReadRuoloFromMetadataElement(TryGetJwtObject(jwt, "app_metadata"));
+        if (!string.IsNullOrWhiteSpace(fromApp))
+            return fromApp;
+
+        var fromUser = ReadRuoloFromMetadataElement(TryGetJwtObject(jwt, "user_metadata"));
+        if (!string.IsNullOrWhiteSpace(fromUser))
+            return fromUser;
+
+        if (jwt.TryGetPayloadValue("ruolo", out string? topRuolo) && !string.IsNullOrWhiteSpace(topRuolo))
+            return topRuolo;
+    }
+
+    // 2) Claim serializzati come JSON string
+    var fromAppClaim = ReadRuoloFromMetadataJson(context.Principal?.FindFirst("app_metadata")?.Value);
+    if (!string.IsNullOrWhiteSpace(fromAppClaim))
+        return fromAppClaim;
+
+    var fromUserClaim = ReadRuoloFromMetadataJson(context.Principal?.FindFirst("user_metadata")?.Value);
+    if (!string.IsNullOrWhiteSpace(fromUserClaim))
+        return fromUserClaim;
+
+    // 3) Claim piatti
+    return context.Principal?.FindFirst("ruolo")?.Value
+        ?? context.Principal?.Claims
+            .FirstOrDefault(c =>
+                c.Type.EndsWith("ruolo", StringComparison.OrdinalIgnoreCase) &&
+                c.Value is "paziente" or "medico" or "admin")
+            ?.Value;
+}
+
+static JsonElement? TryGetJwtObject(
+    Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jwt,
+    string propertyName)
+{
+    if (!jwt.TryGetPayloadValue(propertyName, out JsonElement element))
+        return null;
+
+    return element.ValueKind == JsonValueKind.Object ? element : null;
+}
+
+static string? ReadRuoloFromMetadataElement(JsonElement? element)
+{
+    if (element is null)
+        return null;
+
+    var root = element.Value;
+    if (root.TryGetProperty("ruolo", out var ruoloProp))
+        return ruoloProp.GetString();
+    if (root.TryGetProperty("role", out var roleProp))
+    {
+        var role = roleProp.GetString();
+        // Ignora il ruolo Postgres "authenticated" di Supabase.
+        if (role is "paziente" or "medico" or "admin"
+            or "Paziente" or "Medico" or "Admin")
+            return role;
+    }
+
+    return null;
+}
+
+static string? ReadRuoloFromMetadataJson(string? json)
+{
+    if (string.IsNullOrWhiteSpace(json))
+        return null;
+
+    try
+    {
+        using var doc = JsonDocument.Parse(json);
+        return ReadRuoloFromMetadataElement(doc.RootElement);
+    }
+    catch (JsonException)
+    {
+        return null;
+    }
+}
+
+static async Task<string?> LookupRuoloFromProfiloAsync(TokenValidatedContext context)
+{
+    var sub = context.Principal?.FindFirst("sub")?.Value
+        ?? context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    if (!Guid.TryParse(sub, out var userId))
+        return null;
+
+    var profili = context.HttpContext.RequestServices.GetService<IProfiloRepository>();
+    if (profili is null)
+        return null;
+
+    var profilo = await profili.GetByIdAsync(userId);
+    if (profilo is null)
+        return null;
+
+    return profilo.Ruolo switch
+    {
+        RuoloUtente.Paziente => "paziente",
+        RuoloUtente.Medico => "medico",
+        RuoloUtente.Admin => "admin",
+        _ => null
+    };
 }
 
 static string NormalizeRuolo(string ruolo) => ruolo.ToLowerInvariant() switch

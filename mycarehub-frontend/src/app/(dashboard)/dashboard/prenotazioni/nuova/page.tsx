@@ -2,58 +2,214 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
+import { FancySelect } from "@/src/components/dashboard/FancySelect";
 import { ApiError } from "@/src/lib/api";
 import {
   cercaMediciApi,
   creaPrenotazioneApi,
+  EMPTY_SLOT_ID,
   fetchSlotDisponibiliApi,
-  formatDateTime,
+  formatTime,
+  todayLocalDateKey,
+  toLocalDateKey,
 } from "@/src/lib/dashboard-api";
+import { SPECIALIZZAZIONI } from "@/src/lib/specializzazioni";
 import type { ProfiloDto, SlotDto } from "@/src/types/dto";
+
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function addMonths(d: Date, n: number) {
+  return new Date(d.getFullYear(), d.getMonth() + n, 1);
+}
+
+function monthLabel(d: Date) {
+  return new Intl.DateTimeFormat("it-IT", {
+    month: "long",
+    year: "numeric",
+  }).format(d);
+}
+
+function buildMonthCells(month: Date) {
+  const first = startOfMonth(month);
+  const firstWeekday = (first.getDay() + 6) % 7; // Monday-first
+  const daysInMonth = new Date(
+    month.getFullYear(),
+    month.getMonth() + 1,
+    0
+  ).getDate();
+
+  const cells: ({ kind: "empty" } | { kind: "day"; date: Date; key: string })[] =
+    [];
+
+  for (let i = 0; i < firstWeekday; i++) {
+    cells.push({ kind: "empty" });
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(month.getFullYear(), month.getMonth(), day);
+    cells.push({ kind: "day", date, key: toLocalDateKey(date) });
+  }
+
+  return cells;
+}
 
 export default function NuovaPrenotazionePage() {
   const router = useRouter();
   const [specializzazione, setSpecializzazione] = useState("");
-  const [nome, setNome] = useState("");
-  const [medici, setMedici] = useState<ProfiloDto[]>([]);
+  const [allMedici, setAllMedici] = useState<ProfiloDto[]>([]);
+  const [selectedMedicoId, setSelectedMedicoId] = useState("");
   const [selectedMedico, setSelectedMedico] = useState<ProfiloDto | null>(null);
   const [slots, setSlots] = useState<SlotDto[]>([]);
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
   const [notePaziente, setNotePaziente] = useState("");
-  const [dataFiltro, setDataFiltro] = useState("");
-  const [searching, setSearching] = useState(false);
+  const [selectedDay, setSelectedDay] = useState("");
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
+  const [loadingMedici, setLoadingMedici] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
-  async function onSearch(e?: React.FormEvent) {
-    e?.preventDefault();
-    setSearching(true);
-    setError(null);
-    setMessage(null);
-    setSelectedMedico(null);
-    setSlots([]);
-    setSelectedSlotId(null);
-    try {
-      const results = await cercaMediciApi({ specializzazione, nome });
-      setMedici(results);
-      if (results.length === 0) {
-        setMessage("Nessun medico trovato con i filtri selezionati.");
-      }
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Ricerca medici non riuscita."
+  const todayKey = todayLocalDateKey();
+
+  const mediciFiltrati = useMemo(() => {
+    if (!specializzazione) return allMedici;
+    return allMedici.filter(
+      (m) => m.dettagliMedico?.specializzazione === specializzazione
+    );
+  }, [allMedici, specializzazione]);
+
+  const nessunMedicoDisponibile =
+    !loadingMedici && mediciFiltrati.length === 0;
+
+  const specializzazioneOptions = useMemo(() => {
+    const base = [
+      { value: "", label: "Tutte le specializzazioni" },
+      ...SPECIALIZZAZIONI.map((item) => ({ value: item, label: item })),
+    ];
+    if (
+      specializzazione &&
+      !(SPECIALIZZAZIONI as readonly string[]).includes(specializzazione)
+    ) {
+      base.push({ value: specializzazione, label: specializzazione });
+    }
+    return base;
+  }, [specializzazione]);
+
+  const medicoOptions = useMemo(() => {
+    if (loadingMedici) {
+      return [{ value: "", label: "Caricamento medici…" }];
+    }
+    if (nessunMedicoDisponibile) {
+      return [{ value: "", label: "Nessun medico disponibile" }];
+    }
+    return mediciFiltrati.map((m) => ({
+      value: m.id,
+      label: `${m.nome} ${m.cognome}`,
+      hint: m.dettagliMedico?.specializzazione
+        ? `€ ${m.dettagliMedico.tariffaVisita} · ${m.dettagliMedico.specializzazione}`
+        : undefined,
+    }));
+  }, [loadingMedici, nessunMedicoDisponibile, mediciFiltrati]);
+
+  const slotsByDay = useMemo(() => {
+    const map = new Map<string, SlotDto[]>();
+    for (const slot of slots) {
+      const key = toLocalDateKey(slot.dataOraInizio);
+      const list = map.get(key) ?? [];
+      list.push(slot);
+      map.set(key, list);
+    }
+    for (const list of map.values()) {
+      list.sort(
+        (a, b) =>
+          new Date(a.dataOraInizio).getTime() -
+          new Date(b.dataOraInizio).getTime()
       );
-    } finally {
-      setSearching(false);
+    }
+    return map;
+  }, [slots]);
+
+  const availableDays = useMemo(
+    () => new Set(slotsByDay.keys()),
+    [slotsByDay]
+  );
+
+  const daySlots = selectedDay ? (slotsByDay.get(selectedDay) ?? []) : [];
+
+  const selectedSlot = useMemo(() => {
+    if (!selectedSlotKey) return null;
+    return slots.find((s) => s.dataOraInizio === selectedSlotKey) ?? null;
+  }, [selectedSlotKey, slots]);
+
+  const monthCells = useMemo(() => buildMonthCells(viewMonth), [viewMonth]);
+
+  const canGoPrevMonth = useMemo(() => {
+    const current = startOfMonth(new Date());
+    return viewMonth.getTime() > current.getTime();
+  }, [viewMonth]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoadingMedici(true);
+      try {
+        const results = await cercaMediciApi({});
+        if (active) setAllMedici(Array.isArray(results) ? results : []);
+      } catch (err) {
+        if (active) {
+          setAllMedici([]);
+          toast.error(
+            err instanceof ApiError
+              ? err.message
+              : "Impossibile caricare i medici."
+          );
+        }
+      } finally {
+        if (active) setLoadingMedici(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function onSpecializzazioneChange(value: string) {
+    setSpecializzazione(value);
+    if (selectedMedicoId) {
+      const medico = allMedici.find((m) => m.id === selectedMedicoId);
+      if (
+        value &&
+        medico &&
+        medico.dettagliMedico?.specializzazione !== value
+      ) {
+        setSelectedMedicoId("");
+        setSelectedMedico(null);
+        setSlots([]);
+        setSelectedSlotKey(null);
+        setSelectedDay("");
+      }
     }
   }
 
-  useEffect(() => {
-    void onSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function onMedicoChange(medicoId: string) {
+    setSelectedMedicoId(medicoId);
+    setSelectedSlotKey(null);
+    setSelectedDay("");
+    if (!medicoId) {
+      setSelectedMedico(null);
+      setSlots([]);
+      return;
+    }
+    const medico = allMedici.find((m) => m.id === medicoId) ?? null;
+    setSelectedMedico(medico);
+    if (medico?.dettagliMedico?.specializzazione) {
+      setSpecializzazione(medico.dettagliMedico.specializzazione);
+    }
+  }
 
   useEffect(() => {
     if (!selectedMedico) return;
@@ -61,24 +217,35 @@ export default function NuovaPrenotazionePage() {
 
     (async () => {
       setLoadingSlots(true);
-      setError(null);
-      setSelectedSlotId(null);
+      setSelectedSlotKey(null);
       try {
-        let dataInizio: string | undefined;
-        let dataFine: string | undefined;
-        if (dataFiltro) {
-          dataInizio = new Date(`${dataFiltro}T00:00:00`).toISOString();
-          dataFine = new Date(`${dataFiltro}T23:59:59`).toISOString();
-        }
+        const dataInizio = new Date();
+        dataInizio.setHours(0, 0, 0, 0);
+        const dataFine = new Date(dataInizio);
+        dataFine.setDate(dataFine.getDate() + 60);
+        dataFine.setHours(23, 59, 59, 999);
+
         const data = await fetchSlotDisponibiliApi(
           selectedMedico.id,
-          dataInizio,
-          dataFine
+          dataInizio.toISOString(),
+          dataFine.toISOString()
         );
-        if (active) setSlots(data);
+        if (!active) return;
+        // Solo slot persistiti dall'agenda del medico (niente fasce virtuali).
+        setSlots(
+          Array.isArray(data)
+            ? data.filter(
+                (s) =>
+                  !s.isPrenotato &&
+                  s.id &&
+                  s.id !== EMPTY_SLOT_ID &&
+                  s.id !== ""
+              )
+            : []
+        );
       } catch (err) {
         if (active) {
-          setError(
+          toast.error(
             err instanceof ApiError
               ? err.message
               : "Impossibile caricare gli slot."
@@ -93,37 +260,47 @@ export default function NuovaPrenotazionePage() {
     return () => {
       active = false;
     };
-  }, [selectedMedico, dataFiltro]);
+  }, [selectedMedico]);
 
-  const slotsByDay = useMemo(() => {
-    const map = new Map<string, SlotDto[]>();
-    for (const slot of slots) {
-      const day = new Date(slot.dataOraInizio).toLocaleDateString("it-IT");
-      const list = map.get(day) ?? [];
-      list.push(slot);
-      map.set(day, list);
+  useEffect(() => {
+    if (!selectedDay) return;
+    if (!availableDays.has(selectedDay)) {
+      setSelectedDay("");
+      setSelectedSlotKey(null);
     }
-    return [...map.entries()];
-  }, [slots]);
+  }, [availableDays, selectedDay]);
+
+  function onSelectDay(key: string) {
+    if (key < todayKey) return;
+    if (!availableDays.has(key)) return;
+    setSelectedDay(key);
+    setSelectedSlotKey(null);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedMedico || !selectedSlotId) {
-      setError("Seleziona un medico e uno slot disponibile.");
+    if (!selectedMedico || !selectedSlot) {
+      toast.error("Seleziona un giorno e un orario disponibile.");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
     try {
+      const hasRealSlot =
+        selectedSlot.id &&
+        selectedSlot.id !== EMPTY_SLOT_ID &&
+        selectedSlot.id !== "";
+
       await creaPrenotazioneApi({
-        slotId: selectedSlotId,
+        slotId: hasRealSlot ? selectedSlot.id : null,
         medicoId: selectedMedico.id,
+        dataOraInizio: selectedSlot.dataOraInizio,
         notePaziente: notePaziente.trim() || null,
       });
+      toast.success("Prenotazione creata con successo.");
       router.replace("/dashboard/prenotazioni");
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
           : "Creazione prenotazione non riuscita."
@@ -138,106 +315,209 @@ export default function NuovaPrenotazionePage() {
       <header className="dash-page-header">
         <h1 className="dash-page-title">Nuova prenotazione</h1>
         <p className="dash-page-subtitle">
-          Cerca un medico, scegli uno slot e inserisci le note sintomatiche.
+          Scegli medico, giorno e fascia oraria tra gli slot generati dal medico.
         </p>
       </header>
 
-      {error && <p className="auth-alert">{error}</p>}
-      {message && <p className="auth-alert auth-alert-info">{message}</p>}
-
-      <form className="dash-panel space-y-4" onSubmit={onSearch}>
+      <section className="dash-panel space-y-4">
         <h2 className="dash-section-title">1. Ricerca medici</h2>
         <div className="dash-form-grid">
-          <label className="dash-label">
-            Specializzazione
-            <input
-              className="auth-field"
-              value={specializzazione}
-              onChange={(e) => setSpecializzazione(e.target.value)}
-              placeholder="es. Cardiologia"
-            />
-          </label>
-          <label className="dash-label">
-            Nome / cognome
-            <input
-              className="auth-field"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="es. Rossi"
-            />
-          </label>
+          <FancySelect
+            label="Specializzazione"
+            value={specializzazione}
+            options={specializzazioneOptions}
+            onChange={onSpecializzazioneChange}
+            placeholder="Tutte le specializzazioni"
+          />
+          <FancySelect
+            label="Medico"
+            value={nessunMedicoDisponibile ? "" : selectedMedicoId}
+            options={medicoOptions}
+            onChange={onMedicoChange}
+            disabled={loadingMedici || nessunMedicoDisponibile}
+            invalid={nessunMedicoDisponibile}
+            placeholder="Seleziona un medico"
+          />
         </div>
-        <button className="dash-btn" type="submit" disabled={searching}>
-          {searching ? "Ricerca…" : "Cerca"}
-        </button>
 
-        {medici.length > 0 && (
-          <ul className="dash-list">
-            {medici.map((m) => (
-              <li key={m.id}>
-                <button
-                  type="button"
-                  className={`dash-select-card ${
-                    selectedMedico?.id === m.id ? "is-selected" : ""
-                  }`}
-                  onClick={() => setSelectedMedico(m)}
-                >
-                  <strong>
-                    {m.nome} {m.cognome}
-                  </strong>
-                  <span>
-                    {m.dettagliMedico?.specializzazione ?? "Specialista"}
-                    {m.dettagliMedico
-                      ? ` · € ${m.dettagliMedico.tariffaVisita}`
-                      : ""}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        {selectedMedico && (
+          <div className="dash-select-card is-selected">
+            <strong>
+              {selectedMedico.nome} {selectedMedico.cognome}
+            </strong>
+            <span>
+              {selectedMedico.dettagliMedico?.specializzazione ?? "Specialista"}
+              {selectedMedico.dettagliMedico
+                ? ` · € ${selectedMedico.dettagliMedico.tariffaVisita}`
+                : ""}
+            </span>
+          </div>
         )}
-      </form>
+      </section>
 
       {selectedMedico && (
         <form className="dash-panel space-y-4" onSubmit={onSubmit}>
-          <h2 className="dash-section-title">2. Calendario slot</h2>
-          <label className="dash-label">
-            Filtra per data
-            <input
-              type="date"
-              className="auth-field"
-              value={dataFiltro}
-              onChange={(e) => setDataFiltro(e.target.value)}
-            />
-          </label>
+          <h2 className="dash-section-title">2. Giorno e orario</h2>
 
           {loadingSlots ? (
-            <p className="text-sm text-muted">Caricamento slot…</p>
-          ) : slots.length === 0 ? (
-            <p className="text-sm text-muted">
-              Nessuno slot disponibile per il periodo selezionato.
-            </p>
+            <p className="text-sm text-muted">Caricamento disponibilità…</p>
           ) : (
-            <div className="space-y-4">
-              {slotsByDay.map(([day, daySlots]) => (
-                <div key={day}>
-                  <p className="dash-day-label">{day}</p>
-                  <div className="dash-slot-grid">
-                    {daySlots.map((slot) => (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        className={`dash-slot ${
-                          selectedSlotId === slot.id ? "is-selected" : ""
-                        }`}
-                        onClick={() => setSelectedSlotId(slot.id)}
-                      >
-                        {formatDateTime(slot.dataOraInizio)}
-                      </button>
-                    ))}
-                  </div>
+            <div className="booking-layout">
+              <div className="booking-calendar">
+                <div className="booking-cal-header">
+                  <button
+                    type="button"
+                    className="booking-cal-nav"
+                    disabled={!canGoPrevMonth}
+                    onClick={() => setViewMonth((m) => addMonths(m, -1))}
+                    aria-label="Mese precedente"
+                  >
+                    ‹
+                  </button>
+                  <p className="booking-cal-title">{monthLabel(viewMonth)}</p>
+                  <button
+                    type="button"
+                    className="booking-cal-nav"
+                    onClick={() => setViewMonth((m) => addMonths(m, 1))}
+                    aria-label="Mese successivo"
+                  >
+                    ›
+                  </button>
                 </div>
-              ))}
+
+                <div className="booking-cal-weekdays">
+                  {WEEKDAYS.map((d) => (
+                    <span key={d}>{d}</span>
+                  ))}
+                </div>
+
+                <div className="booking-cal-grid">
+                  {monthCells.map((cell, idx) => {
+                    if (cell.kind === "empty") {
+                      return (
+                        <span
+                          key={`e-${idx}`}
+                          className="booking-cal-cell is-empty"
+                        />
+                      );
+                    }
+
+                    const past = cell.key < todayKey;
+                    const available = availableDays.has(cell.key);
+                    const selected = selectedDay === cell.key;
+                    const isToday = cell.key === todayKey;
+                    const disabled = past || !available;
+
+                    return (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        className={[
+                          "booking-cal-cell",
+                          past ? "is-past" : "",
+                          available ? "is-available" : "is-blocked",
+                          selected ? "is-selected" : "",
+                          isToday ? "is-today" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        disabled={disabled}
+                        onClick={() => onSelectDay(cell.key)}
+                      >
+                        {cell.date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="booking-cal-legend">
+                  Solo i giorni con almeno una fascia libera (medico e paziente)
+                  sono selezionabili. I giorni passati sono disabilitati.
+                </p>
+              </div>
+
+              <div className="booking-times">
+                <p className="dash-day-label">
+                  {selectedDay
+                    ? new Intl.DateTimeFormat("it-IT", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      }).format(new Date(`${selectedDay}T12:00:00`))
+                    : "Seleziona un giorno"}
+                </p>
+
+                {!selectedDay ? (
+                  <p className="text-sm text-muted">
+                    Scegli una data nel calendario per vedere gli orari.
+                  </p>
+                ) : daySlots.length === 0 ? (
+                  <p className="text-sm text-muted">
+                    Nessun orario disponibile in questo giorno.
+                  </p>
+                ) : (
+                  <>
+                    {daySlots.some((s) => new Date(s.dataOraInizio).getHours() < 13) && (
+                    <div className="booking-time-group">
+                      <p className="booking-time-group-label">Mattina</p>
+                      <div className="dash-slot-grid">
+                        {daySlots
+                          .filter((s) => {
+                            const h = new Date(s.dataOraInizio).getHours();
+                            return h < 13;
+                          })
+                          .map((slot) => (
+                            <button
+                              key={slot.dataOraInizio}
+                              type="button"
+                              className={`dash-slot${
+                                selectedSlotKey === slot.dataOraInizio
+                                  ? " is-selected"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                setSelectedSlotKey(slot.dataOraInizio)
+                              }
+                            >
+                              {formatTime(slot.dataOraInizio)}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                    )}
+                    {daySlots.some((s) => new Date(s.dataOraInizio).getHours() >= 13) && (
+                    <div className="booking-time-group">
+                      <p className="booking-time-group-label">
+                        Pomeriggio
+                      </p>
+                      <div className="dash-slot-grid">
+                        {daySlots
+                          .filter((s) => {
+                            const h = new Date(s.dataOraInizio).getHours();
+                            return h >= 13;
+                          })
+                          .map((slot) => (
+                            <button
+                              key={slot.dataOraInizio}
+                              type="button"
+                              className={`dash-slot${
+                                selectedSlotKey === slot.dataOraInizio
+                                  ? " is-selected"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                setSelectedSlotKey(slot.dataOraInizio)
+                              }
+                            >
+                              {formatTime(slot.dataOraInizio)}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -256,7 +536,7 @@ export default function NuovaPrenotazionePage() {
           <button
             className="dash-btn"
             type="submit"
-            disabled={submitting || !selectedSlotId}
+            disabled={submitting || !selectedSlot}
           >
             {submitting ? "Prenotazione…" : "Conferma prenotazione"}
           </button>

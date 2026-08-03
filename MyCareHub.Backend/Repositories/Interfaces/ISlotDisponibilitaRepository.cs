@@ -16,6 +16,11 @@ public interface ISlotDisponibilitaRepository
         bool? isPrenotato = null);
 
     /// <summary>
+    /// Inserimento di un singolo slot.
+    /// </summary>
+    Task<SlotDisponibilita?> CreateAsync(SlotDisponibilita slot);
+
+    /// <summary>
     /// Inserimento massivo degli slot (es. pianificazione settimanale del medico).
     /// </summary>
     Task<bool> CreateBulkAsync(IEnumerable<SlotDisponibilita> slotList);

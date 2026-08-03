@@ -16,6 +16,7 @@ public class SlotCreationBulkDto : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        var now = DateTimeOffset.UtcNow;
         for (var i = 0; i < SlotRichiesti.Count; i++)
         {
             var slot = SlotRichiesti[i];
@@ -23,6 +24,13 @@ public class SlotCreationBulkDto : IValidatableObject
             {
                 yield return new ValidationResult(
                     "La data/ora di fine deve essere successiva a quella di inizio.",
+                    [nameof(SlotRichiesti)]);
+            }
+
+            if (slot.DataOraInizio < now)
+            {
+                yield return new ValidationResult(
+                    "Non è possibile creare slot nel passato.",
                     [nameof(SlotRichiesti)]);
             }
         }

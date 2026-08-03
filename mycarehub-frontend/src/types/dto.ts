@@ -102,8 +102,9 @@ export interface SlotCreationBulkDto {
 
 /** Payload per bloccare uno slot e confermare la visita. */
 export interface PrenotazioneCreateDto {
-  slotId: string;
+  slotId?: string | null;
   medicoId: string;
+  dataOraInizio?: string | null;
   notePaziente?: string | null;
 }
 

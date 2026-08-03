@@ -46,10 +46,20 @@ export function Sidebar({
               <p className="dash-nav-section-label">{section}</p>
               <ul>
                 {sectionItems.map((item) => {
+                  const matches = (href: string) =>
+                    pathname === href ||
+                    (href !== "/dashboard" &&
+                      pathname.startsWith(`${href}/`));
+
                   const active =
-                    pathname === item.href ||
-                    (item.href !== "/dashboard" &&
-                      pathname.startsWith(item.href));
+                    matches(item.href) &&
+                    !items.some(
+                      (other) =>
+                        other.href !== item.href &&
+                        other.href.length > item.href.length &&
+                        matches(other.href)
+                    );
+
                   return (
                     <li key={item.href}>
                       <Link

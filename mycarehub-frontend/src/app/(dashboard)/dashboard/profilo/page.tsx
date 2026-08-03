@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useDashboard } from "@/src/components/dashboard/DashboardContext";
-import { ApiError } from "@/src/lib/api";
-import { updateMioProfiloApi } from "@/src/lib/dashboard-api";
+import { updateMioProfiloFromDb } from "@/src/lib/profilo";
 
 export default function ProfiloPage() {
   const { profilo, email, setProfilo } = useDashboard();
@@ -20,21 +19,20 @@ export default function ProfiloPage() {
     setError(null);
     setOk(null);
     try {
-      await updateMioProfiloApi({
+      const updated = await updateMioProfiloFromDb({
         nome: nome.trim(),
         cognome: cognome.trim(),
         telefono: telefono.trim() || null,
       });
       setProfilo({
         ...profilo,
-        nome: nome.trim(),
-        cognome: cognome.trim(),
-        telefono: telefono.trim() || null,
+        ...updated,
+        dettagliMedico: profilo.dettagliMedico,
       });
       setOk("Profilo aggiornato.");
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Aggiornamento non riuscito."
+        err instanceof Error ? err.message : "Aggiornamento non riuscito."
       );
     } finally {
       setSaving(false);

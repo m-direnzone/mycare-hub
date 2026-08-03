@@ -50,6 +50,35 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
         return response.Models;
     }
 
+    public async Task<SlotDisponibilita?> CreateAsync(SlotDisponibilita slot)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        if (slot.Id == Guid.Empty)
+            slot.Id = Guid.NewGuid();
+
+        if (slot.CreatoAt == default)
+            slot.CreatoAt = now;
+
+        var response = await _supabase
+            .From<SlotDisponibilita>()
+            .Insert(slot);
+
+        var created = response.Models.FirstOrDefault();
+        if (created is not null)
+            return created;
+
+        // Fallback: INSERT ok ma RETURNING filtrato da RLS → rileggi per chiave naturale.
+        var esistenti = await GetByMedicoIdAsync(
+            slot.MedicoId,
+            slot.DataOraInizio.AddMinutes(-1),
+            slot.DataOraInizio.AddMinutes(1));
+
+        return esistenti.FirstOrDefault(s =>
+            s.DataOraInizio.UtcTicks == slot.DataOraInizio.UtcTicks &&
+            s.DataOraFine.UtcTicks == slot.DataOraFine.UtcTicks);
+    }
+
     public async Task<bool> CreateBulkAsync(IEnumerable<SlotDisponibilita> slotList)
     {
         var slots = slotList.ToList();

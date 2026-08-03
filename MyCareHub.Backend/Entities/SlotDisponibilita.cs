@@ -6,7 +6,7 @@ namespace MyCareHub.Backend.Entities;
 [Table("slot_disponibilita")]
 public class SlotDisponibilita : BaseModel
 {
-    [PrimaryKey("id")]
+    [PrimaryKey("id", false)]
     public Guid Id { get; set; }
 
     [Column("medico_id")]

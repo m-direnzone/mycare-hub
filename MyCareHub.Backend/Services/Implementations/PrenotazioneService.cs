@@ -39,13 +39,6 @@ public class PrenotazioneService : IPrenotazioneService
         if (paziente is null || paziente.Ruolo != RuoloUtente.Paziente)
             return null;
 
-        var slot = await _slotRepository.GetByIdAsync(dto.SlotId);
-        if (slot is null || slot.IsPrenotato || slot.MedicoId != dto.MedicoId)
-            return null;
-
-        if (slot.DataOraInizio < DateTimeOffset.UtcNow)
-            return null;
-
         var medico = await _profiloRepository.GetByIdAsync(dto.MedicoId);
         if (medico is null || medico.Ruolo != RuoloUtente.Medico)
             return null;
@@ -54,8 +47,17 @@ public class PrenotazioneService : IPrenotazioneService
         if (dettagliMedico is null || !dettagliMedico.Attivo)
             return null;
 
-        // Lock ottimistico: solo il primo richiedente riesce a passare is_prenotato da false a true
-        var slotBloccato = await _slotRepository.TryLockSlotAsync(dto.SlotId);
+        var slot = await ResolveSlotPerPrenotazioneAsync(dto);
+        if (slot is null || slot.IsPrenotato || slot.MedicoId != dto.MedicoId)
+            return null;
+
+        if (slot.DataOraInizio < DateTimeOffset.UtcNow)
+            return null;
+
+        if (await PazienteHaConflittoAsync(pazienteId, slot.DataOraInizio, slot.DataOraFine))
+            return null;
+
+        var slotBloccato = await _slotRepository.TryLockSlotAsync(slot.Id);
         if (!slotBloccato)
             return null;
 
@@ -65,7 +67,7 @@ public class PrenotazioneService : IPrenotazioneService
             Id = Guid.NewGuid(),
             PazienteId = pazienteId,
             MedicoId = dto.MedicoId,
-            SlotId = dto.SlotId,
+            SlotId = slot.Id,
             Stato = StatoPrenotazione.InAttesa,
             NotePaziente = string.IsNullOrWhiteSpace(dto.NotePaziente) ? null : dto.NotePaziente.Trim(),
             CreatoAt = now,
@@ -75,8 +77,7 @@ public class PrenotazioneService : IPrenotazioneService
         var creata = await _prenotazioneRepository.CreateAsync(prenotazione);
         if (creata is null)
         {
-            // Compensazione: libera lo slot se l'inserimento fallisce
-            await _slotRepository.UpdateStatoPrenotazioneAsync(dto.SlotId, isPrenotato: false);
+            await _slotRepository.UpdateStatoPrenotazioneAsync(slot.Id, isPrenotato: false);
             return null;
         }
 
@@ -120,7 +121,6 @@ public class PrenotazioneService : IPrenotazioneService
         if (!TransizioniConsentite.Contains((prenotazione.Stato, nuovoStato)))
             return false;
 
-        // Completata solo tramite ConcludiVisitaAsync (con note cliniche obbligatorie)
         if (nuovoStato == StatoPrenotazione.Completata)
             return false;
 
@@ -151,6 +151,37 @@ public class PrenotazioneService : IPrenotazioneService
             return false;
 
         return await _prenotazioneRepository.UpdateStatoAsync(prenotazioneId, StatoPrenotazione.Completata);
+    }
+
+    private async Task<SlotDisponibilita?> ResolveSlotPerPrenotazioneAsync(PrenotazioneCreateDto dto)
+    {
+        // Solo slot già generati dal medico in agenda (niente fasce virtuali).
+        if (!dto.SlotId.HasValue || dto.SlotId.Value == Guid.Empty)
+            return null;
+
+        return await _slotRepository.GetByIdAsync(dto.SlotId.Value);
+    }
+
+    private async Task<bool> PazienteHaConflittoAsync(
+        Guid pazienteId,
+        DateTimeOffset inizio,
+        DateTimeOffset fine)
+    {
+        var prenotazioni = (await _prenotazioneRepository.GetByPazienteIdAsync(pazienteId))
+            .Where(p => p.Stato != StatoPrenotazione.Cancellata)
+            .ToList();
+
+        foreach (var prenotazione in prenotazioni)
+        {
+            var slot = await _slotRepository.GetByIdAsync(prenotazione.SlotId);
+            if (slot is null)
+                continue;
+
+            if (inizio < slot.DataOraFine && fine > slot.DataOraInizio)
+                return true;
+        }
+
+        return false;
     }
 
     private async Task<IEnumerable<PrenotazioneDto>> MapManyAsync(IReadOnlyList<Prenotazione> prenotazioni)

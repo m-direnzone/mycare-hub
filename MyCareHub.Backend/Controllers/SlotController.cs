@@ -20,7 +20,7 @@ public class SlotController : ControllerBase
     }
 
     /// <summary>
-    /// Recupera tutti gli slot orari liberi e prenotabili di uno specifico medico.
+    /// Fasce orarie standard libere (30 min, 07–13 / 14–18) tenendo conto di medico e paziente.
     /// </summary>
     [HttpGet("medici/{medicoId:guid}/disponibili")]
     [ProducesResponseType(typeof(IEnumerable<SlotDto>), StatusCodes.Status200OK)]
@@ -33,7 +33,15 @@ public class SlotController : ControllerBase
         if (dataFine.HasValue && dataInizio.HasValue && dataFine < dataInizio)
             return BadRequest(new { message = "dataFine deve essere successiva a dataInizio." });
 
-        var slots = await _slotService.GetSlotDisponibiliMedicoAsync(medicoId, dataInizio, dataFine);
+        Guid? pazienteId = null;
+        if (User.IsInRole(nameof(RuoloUtente.Paziente)) || User.IsInRole("paziente"))
+            pazienteId = User.GetUserId();
+
+        var slots = await _slotService.GetSlotDisponibiliMedicoAsync(
+            medicoId,
+            pazienteId,
+            dataInizio,
+            dataFine);
         return Ok(slots);
     }
 
@@ -82,6 +90,9 @@ public class SlotController : ControllerBase
             dto.MedicoId = utenteId.Value;
         else if (dto.MedicoId == Guid.Empty)
             return BadRequest(new { message = "MedicoId obbligatorio per operazioni Admin." });
+
+        if (dto.SlotRichiesti.Any(s => s.DataOraInizio < DateTimeOffset.UtcNow))
+            return BadRequest(new { message = "Non è possibile creare slot nel passato." });
 
         var creato = await _slotService.GeneraAgendaBulkAsync(dto);
         if (!creato)

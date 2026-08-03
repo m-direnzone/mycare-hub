@@ -6,32 +6,10 @@ import { useRouter } from "next/navigation";
 import { requireAdminFromProfilo } from "@/src/lib/admin-guard";
 import { createMedico } from "@/src/lib/medici";
 import { logout } from "@/src/lib/supabase/client";
+import { SPECIALIZZAZIONI } from "@/src/lib/specializzazioni";
 import type { MedicoCreateResponseDto, MedicoOnboardingDto } from "@/src/types/dto";
 
 const CF_REGEX = /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/;
-
-const SPECIALIZZAZIONI = [
-  "Allergologia",
-  "Anestesia e rianimazione",
-  "Cardiologia",
-  "Chirurgia generale",
-  "Dermatologia",
-  "Endocrinologia",
-  "Gastroenterologia",
-  "Geriatria",
-  "Ginecologia",
-  "Medicina interna",
-  "Neurologia",
-  "Oculistica",
-  "Ortopedia",
-  "Otorinolaringoiatria",
-  "Pediatria",
-  "Pneumologia",
-  "Psichiatria",
-  "Radiologia",
-  "Reumatologia",
-  "Urologia",
-];
 
 const EMPTY_FORM: MedicoOnboardingDto = {
   email: "",
