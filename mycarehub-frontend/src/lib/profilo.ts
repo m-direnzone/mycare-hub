@@ -1,5 +1,5 @@
 import { supabase } from "@/src/lib/supabase/client";
-import type { ProfiloDto } from "@/src/types/dto";
+import type { MedicoDettaglioDto, ProfiloDto } from "@/src/types/dto";
 import type { RuoloUtente } from "@/src/types/enums";
 
 type ProfiloRow = {
@@ -12,6 +12,14 @@ type ProfiloRow = {
   ruolo: RuoloUtente;
 };
 
+type MedicoDettaglioRow = {
+  specializzazione: string;
+  numero_iscrizione_albo: string;
+  biografia: string | null;
+  tariffa_visita: number;
+  attivo: boolean;
+};
+
 function mapProfilo(row: ProfiloRow): ProfiloDto {
   return {
     id: row.id,
@@ -22,6 +30,31 @@ function mapProfilo(row: ProfiloRow): ProfiloDto {
     telefono: row.telefono,
     ruolo: row.ruolo,
   };
+}
+
+function mapDettagliMedico(row: MedicoDettaglioRow): MedicoDettaglioDto {
+  return {
+    specializzazione: row.specializzazione,
+    numeroIscrizioneAlbo: row.numero_iscrizione_albo,
+    biografia: row.biografia,
+    tariffaVisita: Number(row.tariffa_visita),
+    attivo: row.attivo,
+  };
+}
+
+async function fetchDettagliMedico(
+  medicoId: string
+): Promise<MedicoDettaglioDto | null> {
+  const { data, error } = await supabase
+    .from("medici_dettagli")
+    .select(
+      "specializzazione, numero_iscrizione_albo, biografia, tariffa_visita, attivo"
+    )
+    .eq("medico_id", medicoId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapDettagliMedico(data as MedicoDettaglioRow);
 }
 
 /**
@@ -41,7 +74,11 @@ export async function fetchMioProfiloFromDb(): Promise<ProfiloDto | null> {
     .maybeSingle();
 
   if (!error && data) {
-    return mapProfilo(data as ProfiloRow);
+    const profilo = mapProfilo(data as ProfiloRow);
+    if (profilo.ruolo === "medico") {
+      profilo.dettagliMedico = await fetchDettagliMedico(profilo.id);
+    }
+    return profilo;
   }
 
   // Fallback: RPC security definer (funziona anche se RLS blocca il SELECT diretto)
@@ -65,7 +102,7 @@ export async function fetchMioProfiloFromDb(): Promise<ProfiloDto | null> {
     return null;
   }
 
-  return {
+  const profilo: ProfiloDto = {
     id: user.id,
     email: user.email ?? null,
     nome: String(user.user_metadata?.nome ?? ""),
@@ -75,6 +112,12 @@ export async function fetchMioProfiloFromDb(): Promise<ProfiloDto | null> {
     telefono: (user.user_metadata?.telefono as string | undefined) ?? null,
     ruolo,
   };
+
+  if (ruolo === "medico") {
+    profilo.dettagliMedico = await fetchDettagliMedico(user.id);
+  }
+
+  return profilo;
 }
 
 /**
@@ -123,4 +166,41 @@ export async function updateMioProfiloFromDb(payload: {
   }
 
   return mapProfilo(data as ProfiloRow);
+}
+
+/**
+ * Aggiorna la biografia del medico autenticato.
+ * RLS: medici_dettagli_update_own.
+ */
+export async function updateMiaBiografiaMedicoFromDb(payload: {
+  biografia?: string | null;
+}): Promise<MedicoDettaglioDto> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Sessione non valida. Effettua di nuovo l'accesso.");
+  }
+
+  const biografia = payload.biografia?.trim() || null;
+
+  const { data, error } = await supabase
+    .from("medici_dettagli")
+    .update({ biografia })
+    .eq("medico_id", user.id)
+    .select(
+      "specializzazione, numero_iscrizione_albo, biografia, tariffa_visita, attivo"
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Aggiornamento biografia non riuscito.");
+  }
+
+  if (!data) {
+    throw new Error("Dettagli medico non trovati o non aggiornabili.");
+  }
+
+  return mapDettagliMedico(data as MedicoDettaglioRow);
 }

@@ -33,6 +33,20 @@ public class MedicoRepository : IMedicoRepository
         return response.Models.FirstOrDefault();
     }
 
+    public async Task<IEnumerable<MedicoDettaglio>> GetDettagliByIdsAsync(IEnumerable<Guid> medicoIds)
+    {
+        var idList = medicoIds.Select(id => id.ToString()).Distinct().ToList();
+        if (idList.Count == 0)
+            return [];
+
+        var response = await _supabase
+            .From<MedicoDettaglio>()
+            .Filter(x => x.MedicoId!, Operator.In, idList)
+            .Get();
+
+        return response.Models;
+    }
+
     public async Task<bool> ExistsByNumeroAlboAsync(string numeroIscrizioneAlbo)
     {
         var response = await _supabase

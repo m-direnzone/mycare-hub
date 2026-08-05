@@ -97,11 +97,15 @@ public class RefertoService : IRefertoService
         if (string.IsNullOrWhiteSpace(storageFilePath))
             return null;
 
-        var medico = await _profiloRepository.GetByIdAsync(medicoId);
+        var medicoTask = _profiloRepository.GetByIdAsync(medicoId);
+        var pazienteTask = _profiloRepository.GetByIdAsync(dto.PazienteId);
+        await Task.WhenAll(medicoTask, pazienteTask);
+
+        var medico = await medicoTask;
         if (medico is null || medico.Ruolo != RuoloUtente.Medico)
             return null;
 
-        var paziente = await _profiloRepository.GetByIdAsync(dto.PazienteId);
+        var paziente = await pazienteTask;
         if (paziente is null || paziente.Ruolo != RuoloUtente.Paziente)
             return null;
 
@@ -133,10 +137,11 @@ public class RefertoService : IRefertoService
         if (creato is null)
             return null;
 
-        var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(medicoId);
-        var downloadUrl = await CreateSignedDownloadUrlAsync(creato.FilePath);
+        var dettagliMedicoTask = _medicoRepository.GetDettagliByIdAsync(medicoId);
+        var downloadUrlTask = CreateSignedDownloadUrlAsync(creato.FilePath);
+        await Task.WhenAll(dettagliMedicoTask, downloadUrlTask);
 
-        return MapReferto(creato, medico, dettagliMedico, downloadUrl);
+        return MapReferto(creato, medico, await dettagliMedicoTask, await downloadUrlTask);
     }
 
     public async Task<IEnumerable<RefertoDto>> GetFascicoloSanitarioPazienteAsync(Guid pazienteId)
@@ -145,15 +150,25 @@ public class RefertoService : IRefertoService
         if (referti.Count == 0)
             return [];
 
-        var result = new List<RefertoDto>(referti.Count);
-        foreach (var referto in referti)
-        {
-            var dto = await MapRefertoConSignedUrlAsync(referto);
-            if (dto is not null)
-                result.Add(dto);
-        }
+        var medicoIds = referti.Select(r => r.MedicoId).Distinct().ToList();
+        var profiliTask = _profiloRepository.GetByIdsAsync(medicoIds);
+        var dettagliTask = _medicoRepository.GetDettagliByIdsAsync(medicoIds);
+        await Task.WhenAll(profiliTask, dettagliTask);
 
-        return result;
+        var profili = (await profiliTask).ToDictionary(p => p.Id);
+        var dettagli = (await dettagliTask).ToDictionary(d => d.MedicoId);
+
+        var mapped = await Task.WhenAll(referti.Select(async referto =>
+        {
+            if (!profili.TryGetValue(referto.MedicoId, out var medico))
+                return null;
+
+            dettagli.TryGetValue(referto.MedicoId, out var dettagliMedico);
+            var downloadUrl = await CreateSignedDownloadUrlAsync(referto.FilePath);
+            return MapReferto(referto, medico, dettagliMedico, downloadUrl);
+        }));
+
+        return mapped.Where(dto => dto is not null).Cast<RefertoDto>().ToList();
     }
 
     public async Task<RefertoDto?> GetRefertoByIdAsync(Guid refertoId)
@@ -167,14 +182,16 @@ public class RefertoService : IRefertoService
 
     private async Task<RefertoDto?> MapRefertoConSignedUrlAsync(RefertoMedico referto)
     {
-        var medico = await _profiloRepository.GetByIdAsync(referto.MedicoId);
+        var medicoTask = _profiloRepository.GetByIdAsync(referto.MedicoId);
+        var dettagliTask = _medicoRepository.GetDettagliByIdAsync(referto.MedicoId);
+        var downloadUrlTask = CreateSignedDownloadUrlAsync(referto.FilePath);
+        await Task.WhenAll(medicoTask, dettagliTask, downloadUrlTask);
+
+        var medico = await medicoTask;
         if (medico is null)
             return null;
 
-        var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(referto.MedicoId);
-        var downloadUrl = await CreateSignedDownloadUrlAsync(referto.FilePath);
-
-        return MapReferto(referto, medico, dettagliMedico, downloadUrl);
+        return MapReferto(referto, medico, await dettagliTask, await downloadUrlTask);
     }
 
     private async Task<string> CreateSignedDownloadUrlAsync(string filePath)

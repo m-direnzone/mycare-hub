@@ -179,11 +179,15 @@ public class ProfiloService : IProfiloService
 
     public async Task<bool> AggiornaDettagliMedicoAsync(Guid medicoId, MedicoDettaglioUpdateDto dto)
     {
-        var profilo = await _profiloRepository.GetByIdAsync(medicoId);
+        var profiloTask = _profiloRepository.GetByIdAsync(medicoId);
+        var dettagliTask = _medicoRepository.GetDettagliByIdAsync(medicoId);
+        await Task.WhenAll(profiloTask, dettagliTask);
+
+        var profilo = await profiloTask;
         if (profilo is null || profilo.Ruolo != RuoloUtente.Medico)
             return false;
 
-        var dettagli = await _medicoRepository.GetDettagliByIdAsync(medicoId);
+        var dettagli = await dettagliTask;
         if (dettagli is null)
             return false;
 

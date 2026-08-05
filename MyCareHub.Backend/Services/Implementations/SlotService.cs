@@ -65,19 +65,24 @@ public class SlotService : ISlotService
         var rangeStartUtc = ToUtc(inizioLocale, TimeOnly.MinValue);
         var rangeEndUtc = ToUtc(fineLocale.AddDays(1), TimeOnly.MinValue).AddTicks(-1);
 
-        var slotMedico = (await _slotRepository.GetByMedicoIdAsync(
+        var slotMedicoTask = _slotRepository.GetByMedicoIdAsync(
             medicoId,
             rangeStartUtc,
-            rangeEndUtc)).ToList();
+            rangeEndUtc);
 
-        var intervalliOccupatiPaziente = new List<(DateTimeOffset Inizio, DateTimeOffset Fine)>();
+        Task<List<(DateTimeOffset Inizio, DateTimeOffset Fine)>>? intervalliTask = null;
         if (pazienteId.HasValue)
         {
-            intervalliOccupatiPaziente = await GetIntervalliOccupatiPazienteAsync(
+            intervalliTask = GetIntervalliOccupatiPazienteAsync(
                 pazienteId.Value,
                 rangeStartUtc,
                 rangeEndUtc);
         }
+
+        var slotMedico = (await slotMedicoTask).ToList();
+        var intervalliOccupatiPaziente = intervalliTask is null
+            ? []
+            : await intervalliTask;
 
         // Solo slot effettivamente generati dal medico in agenda (nessuna fascia virtuale).
         return slotMedico
@@ -109,11 +114,15 @@ public class SlotService : ISlotService
         if (dto.SlotRichiesti.Count == 0)
             return false;
 
-        var profilo = await _profiloRepository.GetByIdAsync(dto.MedicoId);
+        var profiloTask = _profiloRepository.GetByIdAsync(dto.MedicoId);
+        var dettagliTask = _medicoRepository.GetDettagliByIdAsync(dto.MedicoId);
+        await Task.WhenAll(profiloTask, dettagliTask);
+
+        var profilo = await profiloTask;
         if (profilo is null || profilo.Ruolo != RuoloUtente.Medico)
             return false;
 
-        var dettagli = await _medicoRepository.GetDettagliByIdAsync(dto.MedicoId);
+        var dettagli = await dettagliTask;
         if (dettagli is null || !dettagli.Attivo)
             return false;
 
@@ -185,12 +194,17 @@ public class SlotService : ISlotService
             .Where(p => p.Stato != StatoPrenotazione.Cancellata)
             .ToList();
 
+        if (prenotazioni.Count == 0)
+            return [];
+
+        var slots = (await _slotRepository.GetByIdsAsync(prenotazioni.Select(p => p.SlotId)))
+            .ToDictionary(s => s.Id);
+
         var result = new List<(DateTimeOffset Inizio, DateTimeOffset Fine)>();
 
         foreach (var prenotazione in prenotazioni)
         {
-            var slot = await _slotRepository.GetByIdAsync(prenotazione.SlotId);
-            if (slot is null)
+            if (!slots.TryGetValue(prenotazione.SlotId, out var slot))
                 continue;
 
             if (slot.DataOraFine <= rangeStartUtc || slot.DataOraInizio > rangeEndUtc)

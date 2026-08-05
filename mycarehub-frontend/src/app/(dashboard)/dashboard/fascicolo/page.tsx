@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/src/lib/api";
 import {
   fetchFascicoloApi,
@@ -44,6 +44,30 @@ export default function FascicoloPage() {
     };
   }, []);
 
+  const gruppi = useMemo(() => {
+    const bySpec = new Map<string, RefertoDto[]>();
+    for (const r of referti) {
+      const key = r.medicoSpecializzazione?.trim() || "Altro";
+      const list = bySpec.get(key);
+      if (list) list.push(r);
+      else bySpec.set(key, [r]);
+    }
+    return [...bySpec.entries()]
+      .map(([specializzazione, items]) => ({
+        specializzazione,
+        items: [...items].sort(
+          (a, b) =>
+            new Date(b.dataEmissione).getTime() -
+            new Date(a.dataEmissione).getTime()
+        ),
+      }))
+      .sort(
+        (a, b) =>
+          new Date(b.items[0].dataEmissione).getTime() -
+          new Date(a.items[0].dataEmissione).getTime()
+      );
+  }, [referti]);
+
   return (
     <div className="dash-page">
       <header className="dash-page-header">
@@ -60,32 +84,38 @@ export default function FascicoloPage() {
           <p>Nessun referto presente nel fascicolo.</p>
         </div>
       ) : (
-        <ul className="dash-list">
-          {referti.map((r) => (
-            <li key={r.id} className="dash-list-item">
-              <div className="dash-list-main">
-                <p className="dash-list-title">{r.titolo}</p>
-                <p className="dash-list-meta">
-                  {formatDate(r.dataEmissione)} · {r.medicoNomeCompleto} (
-                  {r.medicoSpecializzazione})
-                </p>
-                {r.descrizione && (
-                  <p className="dash-list-note">{r.descrizione}</p>
-                )}
-              </div>
-              <div className="dash-list-actions">
-                <a
-                  className="dash-btn"
-                  href={r.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Scarica PDF
-                </a>
-              </div>
-            </li>
+        <div className="dash-fascicolo-groups">
+          {gruppi.map(({ specializzazione, items }) => (
+            <section key={specializzazione} className="dash-fascicolo-group">
+              <h2 className="dash-section-title">{specializzazione}</h2>
+              <ul className="dash-list">
+                {items.map((r) => (
+                  <li key={r.id} className="dash-list-item">
+                    <div className="dash-list-main">
+                      <p className="dash-list-title">{r.titolo}</p>
+                      <p className="dash-list-meta">
+                        {formatDate(r.dataEmissione)} · {r.medicoNomeCompleto}
+                      </p>
+                      {r.descrizione && (
+                        <p className="dash-list-note">{r.descrizione}</p>
+                      )}
+                    </div>
+                    <div className="dash-list-actions">
+                      <a
+                        className="dash-btn dash-btn-nowrap"
+                        href={r.downloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Scarica PDF
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

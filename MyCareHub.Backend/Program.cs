@@ -1,8 +1,11 @@
+using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using MyCareHub.Backend.Entities.Enums;
 using MyCareHub.Backend.Repositories.Implementations;
@@ -28,6 +31,28 @@ var jwtSecret = builder.Configuration["Supabase:JwtSecret"];
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+    [
+        "application/json",
+        "application/problem+json"
+    ]);
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
 
 var signingKeys = new List<SecurityKey>();
 using (var httpClient = new HttpClient())
@@ -103,9 +128,8 @@ builder.Services.AddScoped<Client>(sp =>
         options.Headers["Authorization"] = authorization;
     }
 
-    var client = new Client(supabaseUrl, supabaseKey, options);
-    client.InitializeAsync().GetAwaiter().GetResult();
-    return client;
+    // Nessun InitializeAsync: Auth/Realtime non servono; PostgREST/Storage usano subito la key + header.
+    return new Client(supabaseUrl, supabaseKey, options);
 });
 
 builder.Services.AddScoped<IProfiloRepository, ProfiloRepository>();
@@ -115,6 +139,8 @@ builder.Services.AddScoped<IPrenotazioneRepository, PrenotazioneRepository>();
 builder.Services.AddScoped<IRefertoMedicoRepository, RefertoMedicoRepository>();
 builder.Services.AddScoped<ISpecializzazioneRepository, SpecializzazioneRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IConversazioneRepository, ConversazioneRepository>();
+builder.Services.AddScoped<IMessaggioRepository, MessaggioRepository>();
 
 builder.Services.AddScoped<ISupabaseAuthAdminService, SupabaseAuthAdminService>();
 builder.Services.AddScoped<IProfiloService, ProfiloService>();
@@ -122,6 +148,7 @@ builder.Services.AddScoped<ISlotService, SlotService>();
 builder.Services.AddScoped<IPrenotazioneService, PrenotazioneService>();
 builder.Services.AddScoped<IRefertoService, RefertoService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IChatService, ChatService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -159,6 +186,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseResponseCompression();
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseAuthentication();
@@ -293,6 +321,11 @@ static async Task<string?> LookupRuoloFromProfiloAsync(TokenValidatedContext con
     if (!Guid.TryParse(sub, out var userId))
         return null;
 
+    var cache = context.HttpContext.RequestServices.GetService<IMemoryCache>();
+    var cacheKey = $"ruolo-profilo:{userId:D}";
+    if (cache is not null && cache.TryGetValue(cacheKey, out string? cached) && !string.IsNullOrWhiteSpace(cached))
+        return cached;
+
     var profili = context.HttpContext.RequestServices.GetService<IProfiloRepository>();
     if (profili is null)
         return null;
@@ -301,13 +334,20 @@ static async Task<string?> LookupRuoloFromProfiloAsync(TokenValidatedContext con
     if (profilo is null)
         return null;
 
-    return profilo.Ruolo switch
+    var ruolo = profilo.Ruolo switch
     {
         RuoloUtente.Paziente => "paziente",
         RuoloUtente.Medico => "medico",
         RuoloUtente.Admin => "admin",
         _ => null
     };
+
+    if (ruolo is not null && cache is not null)
+    {
+        cache.Set(cacheKey, ruolo, TimeSpan.FromMinutes(5));
+    }
+
+    return ruolo;
 }
 
 static string NormalizeRuolo(string ruolo) => ruolo.ToLowerInvariant() switch

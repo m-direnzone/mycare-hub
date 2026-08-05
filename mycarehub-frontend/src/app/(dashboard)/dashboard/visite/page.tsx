@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ApiError } from "@/src/lib/api";
 import {
   cambiaStatoPrenotazioneApi,
@@ -12,7 +13,14 @@ import {
 import type { PrenotazioneDto } from "@/src/types/dto";
 import { toast } from "react-toastify";
 
-type TabKey = "oggi" | "in_arrivo" | "storico";
+type TabKey = "oggi" | "in_attesa" | "in_arrivo" | "storico";
+
+const TAB_KEYS: TabKey[] = ["oggi", "in_attesa", "in_arrivo", "storico"];
+
+function parseTab(value: string | null): TabKey {
+  if (value && TAB_KEYS.includes(value as TabKey)) return value as TabKey;
+  return "oggi";
+}
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -26,13 +34,20 @@ function endOfDay(d = new Date()) {
   return x;
 }
 
-export default function VisiteMedicoPage() {
+function VisiteMedicoContent() {
+  const searchParams = useSearchParams();
   const [visite, setVisite] = useState<PrenotazioneDto[]>([]);
-  const [tab, setTab] = useState<TabKey>("oggi");
+  const [tab, setTab] = useState<TabKey>(() =>
+    parseTab(searchParams.get("tab"))
+  );
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [noteMediche, setNoteMediche] = useState<Record<string, string>>({});
   const [concludiOpen, setConcludiOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTab(parseTab(searchParams.get("tab")));
+  }, [searchParams]);
 
   async function load() {
     setLoading(true);
@@ -64,17 +79,20 @@ export default function VisiteMedicoPage() {
 
     return visite.filter((v) => {
       const t = new Date(v.dataOraInizio).getTime();
-      if (tab === "oggi") return t >= todayStart && t <= todayEnd;
+      if (tab === "oggi") {
+        return t >= todayStart && t <= todayEnd && v.stato === "confermata";
+      }
+      if (tab === "in_attesa") {
+        return v.stato === "in_attesa";
+      }
       if (tab === "in_arrivo") {
-        return (
-          t > todayEnd &&
-          (v.stato === "in_attesa" || v.stato === "confermata")
-        );
+        return t > todayEnd && v.stato === "confermata";
       }
       return (
-        t < todayStart ||
-        v.stato === "completata" ||
-        v.stato === "cancellata"
+        v.stato !== "in_attesa" &&
+        (t < todayStart ||
+          v.stato === "completata" ||
+          v.stato === "cancellata")
       );
     });
   }, [visite, tab]);
@@ -134,7 +152,7 @@ export default function VisiteMedicoPage() {
       <header className="dash-page-header">
         <h1 className="dash-page-title">Gestione visite</h1>
         <p className="dash-page-subtitle">
-          Registro visite: oggi, in arrivo e storico.
+          Registro visite: oggi, in attesa, in arrivo e storico.
         </p>
       </header>
 
@@ -142,6 +160,7 @@ export default function VisiteMedicoPage() {
         {(
           [
             ["oggi", "Oggi"],
+            ["in_attesa", "In attesa"],
             ["in_arrivo", "In arrivo"],
             ["storico", "Storico"],
           ] as const
@@ -267,5 +286,13 @@ export default function VisiteMedicoPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+export default function VisiteMedicoPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">Caricamento…</p>}>
+      <VisiteMedicoContent />
+    </Suspense>
   );
 }

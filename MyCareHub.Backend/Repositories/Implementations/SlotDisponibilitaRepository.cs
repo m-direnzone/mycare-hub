@@ -30,24 +30,43 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
         DateTimeOffset? dataFine = null,
         bool? isPrenotato = null)
     {
-        var query = _supabase
-            .From<SlotDisponibilita>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString());
+        // PostgREST default max-rows is 1000; page until all matching slots are loaded.
+        const int pageSize = 1000;
+        var all = new List<SlotDisponibilita>();
+        var offset = 0;
 
-        if (dataInizio.HasValue)
-            query = query.Filter(x => x.DataOraInizio!, Operator.GreaterThanOrEqual, dataInizio.Value);
+        while (true)
+        {
+            var query = _supabase
+                .From<SlotDisponibilita>()
+                .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString());
 
-        if (dataFine.HasValue)
-            query = query.Filter(x => x.DataOraInizio!, Operator.LessThanOrEqual, dataFine.Value);
+            if (dataInizio.HasValue)
+                query = query.Filter(x => x.DataOraInizio!, Operator.GreaterThanOrEqual, dataInizio.Value);
 
-        if (isPrenotato.HasValue)
-            query = query.Filter(x => x.IsPrenotato!, Operator.Equals, isPrenotato.Value ? "true" : "false");
+            if (dataFine.HasValue)
+                query = query.Filter(x => x.DataOraInizio!, Operator.LessThanOrEqual, dataFine.Value);
 
-        var response = await query
-            .Order(x => x.DataOraInizio!, Ordering.Ascending)
-            .Get();
+            if (isPrenotato.HasValue)
+                query = query.Filter(x => x.IsPrenotato!, Operator.Equals, isPrenotato.Value ? "true" : "false");
 
-        return response.Models;
+            var response = await query
+                .Order(x => x.DataOraInizio!, Ordering.Ascending)
+                .Range(offset, offset + pageSize - 1)
+                .Get();
+
+            if (response.Models.Count == 0)
+                break;
+
+            all.AddRange(response.Models);
+
+            if (response.Models.Count < pageSize)
+                break;
+
+            offset += pageSize;
+        }
+
+        return all;
     }
 
     public async Task<SlotDisponibilita?> CreateAsync(SlotDisponibilita slot)

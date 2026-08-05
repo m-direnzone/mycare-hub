@@ -25,11 +25,7 @@ export default function RefertiMedicoPage() {
       try {
         const data = await fetchAgendaMedicoApi();
         if (active) {
-          setVisite(
-            data.filter(
-              (v) => v.stato === "confermata" || v.stato === "completata"
-            )
-          );
+          setVisite(data.filter((v) => v.stato === "completata"));
         }
       } catch (err) {
         if (active) {

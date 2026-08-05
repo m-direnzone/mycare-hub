@@ -39,7 +39,13 @@ public class AdminService : IAdminService
         var inizioMesePrec = inizioMese.AddMonths(-1);
         var fineMesePrec = inizioMese.AddTicks(-1);
 
-        var pazienti = (await _profiloRepository.GetByRuoloAsync(RuoloUtente.Paziente)).ToList();
+        var pazientiTask = _profiloRepository.GetByRuoloAsync(RuoloUtente.Paziente);
+        var mediciTask = _medicoRepository.GetTuttiMediciAsync();
+        var prenotazioniTask = _prenotazioneRepository.GetAllAsync(inizioMese, fineMese);
+        var dettagliTask = _medicoRepository.GetAllDettagliAsync();
+        await Task.WhenAll(pazientiTask, mediciTask, prenotazioniTask, dettagliTask);
+
+        var pazienti = (await pazientiTask).ToList();
         var pazientiMese = pazienti.Count(p => p.CreatoAt >= inizioMese && p.CreatoAt <= fineMese);
         var pazientiMesePrec = pazienti.Count(p => p.CreatoAt >= inizioMesePrec && p.CreatoAt <= fineMesePrec);
 
@@ -49,7 +55,7 @@ public class AdminService : IAdminService
         else if (pazientiMese > 0)
             delta = 100m;
 
-        var medici = (await _medicoRepository.GetTuttiMediciAsync()).ToList();
+        var medici = (await mediciTask).ToList();
 
         var mediciAttiviPasswordOk = 0;
         var mediciInAttesa = 0;
@@ -64,8 +70,8 @@ public class AdminService : IAdminService
                 mediciInAttesa++;
         }
 
-        var prenotazioniMese = (await _prenotazioneRepository.GetAllAsync(inizioMese, fineMese)).ToList();
-        var dettagliMedici = (await _medicoRepository.GetAllDettagliAsync()).ToDictionary(d => d.MedicoId);
+        var prenotazioniMese = (await prenotazioniTask).ToList();
+        var dettagliMedici = (await dettagliTask).ToDictionary(d => d.MedicoId);
 
         var completate = 0;
         var cancellate = 0;
@@ -311,14 +317,19 @@ public class AdminService : IAdminService
         if (prenotazioni.Count == 0)
             return [];
 
-        var slots = (await _slotRepository.GetByIdsAsync(prenotazioni.Select(p => p.SlotId)))
-            .ToDictionary(s => s.Id);
+        var slotsTask = _slotRepository.GetByIdsAsync(prenotazioni.Select(p => p.SlotId));
         var profiloIds = prenotazioni
             .SelectMany(p => new[] { p.MedicoId, p.PazienteId })
             .Distinct();
-        var profili = (await _profiloRepository.GetByIdsAsync(profiloIds))
+        var profiliTask = _profiloRepository.GetByIdsAsync(profiloIds);
+        var dettagliTask = _medicoRepository.GetAllDettagliAsync();
+        await Task.WhenAll(slotsTask, profiliTask, dettagliTask);
+
+        var slots = (await slotsTask)
+            .ToDictionary(s => s.Id);
+        var profili = (await profiliTask)
             .ToDictionary(p => p.Id);
-        var dettagli = (await _medicoRepository.GetAllDettagliAsync())
+        var dettagli = (await dettagliTask)
             .ToDictionary(d => d.MedicoId);
 
         return prenotazioni

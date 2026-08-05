@@ -6,6 +6,7 @@ public interface IMedicoRepository
 {
     Task<bool> CreateMedicoDettagliAsync(MedicoDettaglio dettaglio);
     Task<MedicoDettaglio?> GetDettagliByIdAsync(Guid medicoId);
+    Task<IEnumerable<MedicoDettaglio>> GetDettagliByIdsAsync(IEnumerable<Guid> medicoIds);
     Task<bool> UpdateMedicoDettagliAsync(MedicoDettaglio dettaglio);
     Task<bool> ExistsByNumeroAlboAsync(string numeroIscrizioneAlbo);
     Task<bool> MarkPasswordCambiataAsync(Guid medicoId);

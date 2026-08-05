@@ -154,3 +154,44 @@ export interface RefertoDto {
   medicoNomeCompleto: string;
   medicoSpecializzazione: string;
 }
+
+/** Conversazione chat medico ↔ paziente. */
+export interface ConversazioneDto {
+  id: string;
+  pazienteId: string;
+  medicoId: string;
+  contattoNomeCompleto: string;
+  contattoSottoTitolo?: string | null;
+  creatoAt: string;
+  aggiornatoAt: string;
+  ultimoMessaggioAt?: string | null;
+  anteprimaUltimoMessaggio?: string | null;
+  messaggiNonLetti: number;
+}
+
+/** Singolo messaggio in una conversazione. */
+export interface MessaggioDto {
+  id: string;
+  conversazioneId: string;
+  mittenteId: string;
+  contenuto: string;
+  creatoAt: string;
+  lettoAt?: string | null;
+  isMio: boolean;
+}
+
+/** Contatto con cui è possibile aprire una chat. */
+export interface ChatContattoDto {
+  id: string;
+  nomeCompleto: string;
+  sottoTitolo?: string | null;
+  conversazioneId?: string | null;
+}
+
+export interface ConversazioneCreateDto {
+  contattoId: string;
+}
+
+export interface MessaggioCreateDto {
+  contenuto: string;
+}

@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useDashboard } from "@/src/components/dashboard/DashboardContext";
-import { updateMioProfiloFromDb } from "@/src/lib/profilo";
+import {
+  updateMioProfiloFromDb,
+  updateMiaBiografiaMedicoFromDb,
+} from "@/src/lib/profilo";
 import { toast } from "react-toastify";
 
 export default function ProfiloPage() {
@@ -10,6 +13,9 @@ export default function ProfiloPage() {
   const [nome, setNome] = useState(profilo.nome);
   const [cognome, setCognome] = useState(profilo.cognome);
   const [telefono, setTelefono] = useState(profilo.telefono ?? "");
+  const [biografia, setBiografia] = useState(
+    profilo.dettagliMedico?.biografia ?? ""
+  );
   const [saving, setSaving] = useState(false);
 
   async function onSave(e: React.FormEvent) {
@@ -21,10 +27,18 @@ export default function ProfiloPage() {
         cognome: cognome.trim(),
         telefono: telefono.trim() || null,
       });
+
+      let dettagliMedico = profilo.dettagliMedico;
+      if (profilo.ruolo === "medico" && dettagliMedico) {
+        dettagliMedico = await updateMiaBiografiaMedicoFromDb({
+          biografia: biografia.trim() || null,
+        });
+      }
+
       setProfilo({
         ...profilo,
         ...updated,
-        dettagliMedico: profilo.dettagliMedico,
+        dettagliMedico,
       });
       toast.success("Profilo aggiornato.");
     } catch (err) {
@@ -100,19 +114,32 @@ export default function ProfiloPage() {
         </div>
 
         {profilo.ruolo === "medico" && profilo.dettagliMedico && (
-          <div className="dash-readonly-box">
-            <p>
-              <strong>Specializzazione:</strong>{" "}
-              {profilo.dettagliMedico.specializzazione}
-            </p>
-            <p>
-              <strong>Albo:</strong>{" "}
-              {profilo.dettagliMedico.numeroIscrizioneAlbo}
-            </p>
-            <p>
-              <strong>Tariffa visita:</strong> €{" "}
-              {profilo.dettagliMedico.tariffaVisita}
-            </p>
+          <div className="space-y-4">
+            <div className="dash-readonly-box">
+              <p>
+                <strong>Specializzazione:</strong>{" "}
+                {profilo.dettagliMedico.specializzazione}
+              </p>
+              <p>
+                <strong>Albo:</strong>{" "}
+                {profilo.dettagliMedico.numeroIscrizioneAlbo}
+              </p>
+              <p>
+                <strong>Tariffa visita:</strong> €{" "}
+                {profilo.dettagliMedico.tariffaVisita}
+              </p>
+            </div>
+            <label className="dash-label">
+              Biografia
+              <textarea
+                className="dash-textarea"
+                rows={5}
+                maxLength={2000}
+                value={biografia}
+                onChange={(e) => setBiografia(e.target.value)}
+                placeholder="Presentati ai pazienti: esperienza, approccio, aree di interesse…"
+              />
+            </label>
           </div>
         )}
 

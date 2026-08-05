@@ -35,19 +35,26 @@ public class PrenotazioneService : IPrenotazioneService
 
     public async Task<PrenotazioneDto?> PrenotaVisitaAsync(Guid pazienteId, PrenotazioneCreateDto dto)
     {
-        var paziente = await _profiloRepository.GetByIdAsync(pazienteId);
+        var pazienteTask = _profiloRepository.GetByIdAsync(pazienteId);
+        var medicoTask = _profiloRepository.GetByIdAsync(dto.MedicoId);
+        var dettagliTask = _medicoRepository.GetDettagliByIdAsync(dto.MedicoId);
+        var slotTask = ResolveSlotPerPrenotazioneAsync(dto);
+
+        await Task.WhenAll(pazienteTask, medicoTask, dettagliTask, slotTask);
+
+        var paziente = await pazienteTask;
         if (paziente is null || paziente.Ruolo != RuoloUtente.Paziente)
             return null;
 
-        var medico = await _profiloRepository.GetByIdAsync(dto.MedicoId);
+        var medico = await medicoTask;
         if (medico is null || medico.Ruolo != RuoloUtente.Medico)
             return null;
 
-        var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(dto.MedicoId);
+        var dettagliMedico = await dettagliTask;
         if (dettagliMedico is null || !dettagliMedico.Attivo)
             return null;
 
-        var slot = await ResolveSlotPerPrenotazioneAsync(dto);
+        var slot = await slotTask;
         if (slot is null || slot.IsPrenotato || slot.MedicoId != dto.MedicoId)
             return null;
 
@@ -171,10 +178,15 @@ public class PrenotazioneService : IPrenotazioneService
             .Where(p => p.Stato != StatoPrenotazione.Cancellata)
             .ToList();
 
+        if (prenotazioni.Count == 0)
+            return false;
+
+        var slots = (await _slotRepository.GetByIdsAsync(prenotazioni.Select(p => p.SlotId)))
+            .ToDictionary(s => s.Id);
+
         foreach (var prenotazione in prenotazioni)
         {
-            var slot = await _slotRepository.GetByIdAsync(prenotazione.SlotId);
-            if (slot is null)
+            if (!slots.TryGetValue(prenotazione.SlotId, out var slot))
                 continue;
 
             if (inizio < slot.DataOraFine && fine > slot.DataOraInizio)
@@ -189,18 +201,32 @@ public class PrenotazioneService : IPrenotazioneService
         if (prenotazioni.Count == 0)
             return [];
 
+        var slotsTask = _slotRepository.GetByIdsAsync(prenotazioni.Select(p => p.SlotId));
+        var profiloIds = prenotazioni
+            .SelectMany(p => new[] { p.MedicoId, p.PazienteId })
+            .Distinct();
+        var profiliTask = _profiloRepository.GetByIdsAsync(profiloIds);
+        var dettagliTask = _medicoRepository.GetDettagliByIdsAsync(
+            prenotazioni.Select(p => p.MedicoId).Distinct());
+
+        await Task.WhenAll(slotsTask, profiliTask, dettagliTask);
+
+        var slots = (await slotsTask).ToDictionary(s => s.Id);
+        var profili = (await profiliTask).ToDictionary(p => p.Id);
+        var dettagli = (await dettagliTask).ToDictionary(d => d.MedicoId);
+
         var result = new List<PrenotazioneDto>(prenotazioni.Count);
 
         foreach (var prenotazione in prenotazioni)
         {
-            var slot = await _slotRepository.GetByIdAsync(prenotazione.SlotId);
-            var medico = await _profiloRepository.GetByIdAsync(prenotazione.MedicoId);
-            var paziente = await _profiloRepository.GetByIdAsync(prenotazione.PazienteId);
-            var dettagliMedico = await _medicoRepository.GetDettagliByIdAsync(prenotazione.MedicoId);
-
-            if (slot is null || medico is null || paziente is null)
+            if (!slots.TryGetValue(prenotazione.SlotId, out var slot)
+                || !profili.TryGetValue(prenotazione.MedicoId, out var medico)
+                || !profili.TryGetValue(prenotazione.PazienteId, out var paziente))
+            {
                 continue;
+            }
 
+            dettagli.TryGetValue(prenotazione.MedicoId, out var dettagliMedico);
             result.Add(MapPrenotazione(prenotazione, slot, medico, dettagliMedico, paziente));
         }
 

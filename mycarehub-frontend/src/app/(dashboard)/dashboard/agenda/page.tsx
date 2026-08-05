@@ -206,12 +206,32 @@ export default function AgendaMedicoPage() {
       to.setMonth(to.getMonth() + 14);
       to.setHours(23, 59, 59, 999);
 
-      const dataSlots = await fetchMiaAgendaSlotApi(
-        from.toISOString(),
-        to.toISOString()
-      );
+      // Carica a finestre mensili: PostgREST tronca a 1000 righe per richiesta.
+      const byId = new Map<string, SlotDto>();
+      const cursor = new Date(from);
+      while (cursor <= to) {
+        const chunkStart = new Date(cursor);
+        const chunkEnd = new Date(
+          cursor.getFullYear(),
+          cursor.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        );
+        const end = chunkEnd > to ? to : chunkEnd;
+        const dataSlots = await fetchMiaAgendaSlotApi(
+          chunkStart.toISOString(),
+          end.toISOString()
+        );
+        for (const slot of dataSlots) byId.set(slot.id, slot);
+        cursor.setFullYear(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        cursor.setHours(0, 0, 0, 0);
+      }
+
       setSlots(
-        [...dataSlots].sort(
+        [...byId.values()].sort(
           (a, b) =>
             new Date(a.dataOraInizio).getTime() -
             new Date(b.dataOraInizio).getTime()

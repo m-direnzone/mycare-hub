@@ -10,6 +10,7 @@ const PAZIENTE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Panoramica", section: "Generale" },
   { href: "/dashboard/prenotazioni", label: "Le mie prenotazioni", section: "Prenotazioni" },
   { href: "/dashboard/prenotazioni/nuova", label: "Nuova prenotazione", section: "Prenotazioni" },
+  { href: "/dashboard/chat", label: "Chat", section: "Comunicazioni" },
   { href: "/dashboard/fascicolo", label: "Fascicolo sanitario", section: "Documenti" },
   { href: "/dashboard/profilo", label: "Profilo personale", section: "Account" },
 ];
@@ -18,6 +19,7 @@ const MEDICO_NAV: NavItem[] = [
   { href: "/dashboard", label: "Panoramica", section: "Generale" },
   { href: "/dashboard/agenda", label: "Agenda & slot", section: "Agenda" },
   { href: "/dashboard/visite", label: "Gestione visite", section: "Visite" },
+  { href: "/dashboard/chat", label: "Chat", section: "Comunicazioni" },
   { href: "/dashboard/referti", label: "Emissione referti", section: "Documenti" },
   { href: "/dashboard/profilo", label: "Profilo personale", section: "Account" },
 ];
