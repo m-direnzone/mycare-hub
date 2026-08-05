@@ -1,4 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +16,17 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
         {children}
       </div>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        theme="colored"
+        limit={3}
+        style={{ width: "min(22rem, calc(100vw - 1.5rem))" }}
+      />
     </main>
   );
 }

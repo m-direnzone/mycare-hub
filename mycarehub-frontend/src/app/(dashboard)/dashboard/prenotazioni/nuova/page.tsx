@@ -14,7 +14,7 @@ import {
   todayLocalDateKey,
   toLocalDateKey,
 } from "@/src/lib/dashboard-api";
-import { SPECIALIZZAZIONI } from "@/src/lib/specializzazioni";
+import { fetchSpecializzazioniNomi } from "@/src/lib/specializzazioni";
 import type { ProfiloDto, SlotDto } from "@/src/types/dto";
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -72,8 +72,20 @@ export default function NuovaPrenotazionePage() {
   const [loadingMedici, setLoadingMedici] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [specializzazioni, setSpecializzazioni] = useState<string[]>([]);
 
   const todayKey = todayLocalDateKey();
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const list = await fetchSpecializzazioniNomi();
+      if (active) setSpecializzazioni(list);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const mediciFiltrati = useMemo(() => {
     if (!specializzazione) return allMedici;
@@ -88,16 +100,13 @@ export default function NuovaPrenotazionePage() {
   const specializzazioneOptions = useMemo(() => {
     const base = [
       { value: "", label: "Tutte le specializzazioni" },
-      ...SPECIALIZZAZIONI.map((item) => ({ value: item, label: item })),
+      ...specializzazioni.map((item) => ({ value: item, label: item })),
     ];
-    if (
-      specializzazione &&
-      !(SPECIALIZZAZIONI as readonly string[]).includes(specializzazione)
-    ) {
+    if (specializzazione && !specializzazioni.includes(specializzazione)) {
       base.push({ value: specializzazione, label: specializzazione });
     }
     return base;
-  }, [specializzazione]);
+  }, [specializzazione, specializzazioni]);
 
   const medicoOptions = useMemo(() => {
     if (loadingMedici) {

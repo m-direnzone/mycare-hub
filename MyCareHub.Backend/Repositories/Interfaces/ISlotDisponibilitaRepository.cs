@@ -40,4 +40,6 @@ public interface ISlotDisponibilitaRepository
     /// Elimina uno slot solo se non è ancora stato prenotato.
     /// </summary>
     Task<bool> DeleteAsync(Guid id);
+
+    Task<IEnumerable<SlotDisponibilita>> GetByIdsAsync(IEnumerable<Guid> ids);
 }

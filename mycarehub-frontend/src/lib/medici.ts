@@ -21,41 +21,13 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function shouldFallbackToEdge(err: unknown): boolean {
-  if (err instanceof TypeError) return true;
-
-  if (err instanceof ApiError) {
-    return (
-      err.status === 503 ||
-      err.status === 401 ||
-      err.status === 403 ||
-      err.message.toLowerCase().includes("failed to fetch") ||
-      err.message.toLowerCase().includes("servicerolekey")
-    );
-  }
-
-  if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
-    return msg.includes("failed to fetch") || msg.includes("servicerolekey");
-  }
-
-  return false;
-}
-
 /**
- * Crea un medico: prova il backend ASP.NET, in fallback la Edge Function Supabase.
+ * Crea un medico tramite Edge Function (verifica JWT admin lato Supabase).
+ * La service role resta solo nei secret della Function, non nel backend ASP.NET.
  */
 export async function createMedico(
   payload: MedicoOnboardingDto
 ): Promise<MedicoCreateResponseDto> {
-  try {
-    return await api.post<MedicoCreateResponseDto>("/api/Profili/medici", payload);
-  } catch (err) {
-    if (!shouldFallbackToEdge(err)) {
-      throw new Error(extractErrorMessage(err, "Creazione medico non riuscita."));
-    }
-  }
-
   const { data, error } = await supabase.functions.invoke("admin-create-medico", {
     body: payload,
   });
@@ -80,5 +52,19 @@ export async function createMedico(
     throw new Error(String((data as { message: string }).message));
   }
 
+  // Audit best-effort via API JWT (non blocca la creazione).
+  try {
+    await api.post("/api/Admin/audit/medico-creato", {
+      medicoId: (data as MedicoCreateResponseDto).id,
+      email: (data as MedicoCreateResponseDto).email,
+      nome: payload.nome,
+      cognome: payload.cognome,
+    });
+  } catch {
+    // ignore
+  }
+
   return data as MedicoCreateResponseDto;
 }
+
+export { extractErrorMessage };

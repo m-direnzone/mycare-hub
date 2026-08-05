@@ -1,99 +1,142 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { requireAdminFromProfilo } from "@/src/lib/admin-guard";
-import { logout } from "@/src/lib/supabase/client";
-import type { ProfiloDto } from "@/src/types/dto";
+import {
+  fetchAdminKpi,
+  formatDelta,
+  formatEuro,
+  type AdminKpiDto,
+} from "@/src/lib/admin-api";
+import { ApiError } from "@/src/lib/api";
+import { useDashboard } from "@/src/components/dashboard/DashboardContext";
+import { toast } from "react-toastify";
 
 export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [profilo, setProfilo] = useState<ProfiloDto | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
+  const { profilo } = useDashboard();
+  const [kpi, setKpi] = useState<AdminKpiDto | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-
     (async () => {
-      const result = await requireAdminFromProfilo();
-      if (!active) return;
-
-      if (!result.ok) {
-        router.replace(result.redirect);
-        return;
+      try {
+        const data = await fetchAdminKpi();
+        if (active) setKpi(data);
+      } catch (err) {
+        if (active) {
+          toast.error(
+            err instanceof ApiError
+              ? err.message
+              : "Impossibile caricare i KPI."
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-
-      setProfilo(result.profilo);
-      setEmail(result.user.email ?? null);
-      setLoading(false);
     })();
-
     return () => {
       active = false;
     };
-  }, [router]);
-
-  async function onLogout() {
-    await logout();
-    router.replace("/login");
-  }
-
-  if (loading) {
-    return (
-      <main className="auth-shell">
-        <p className="text-sm text-muted">Caricamento pannello admin…</p>
-      </main>
-    );
-  }
+  }, []);
 
   return (
-    <main className="auth-shell">
-      <div className="auth-panel auth-panel-wide space-y-6">
-        <div className="text-center">
-          <p className="auth-brand">MyCareHub</p>
-          <h1 className="mt-3 text-xl font-semibold tracking-tight">
-            Pannello amministrazione
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Accesso riservato agli account con ruolo{" "}
-            <span className="font-medium text-foreground">admin</span> in
-            profilo.
-          </p>
-        </div>
+    <div className="dash-page">
+      <header className="dash-page-header">
+        <h1 className="dash-page-title">Dashboard admin</h1>
+        <p className="dash-page-subtitle">
+          Ciao {profilo.nome}, ecco lo stato operativo della piattaforma.
+        </p>
+      </header>
 
-        <div className="rounded-xl border border-[var(--border)] bg-white/55 px-4 py-3 text-sm">
-          <p>
-            <span className="font-medium">Operatore:</span>{" "}
-            {profilo ? `${profilo.nome} ${profilo.cognome}` : "—"}
-          </p>
-          <p className="mt-1 text-muted">
-            {email ?? "email non disponibile"} · ruolo {profilo?.ruolo}
-          </p>
-        </div>
+      {loading ? (
+        <p className="text-sm text-muted">Caricamento indicatori…</p>
+      ) : null}
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-            Azioni disponibili
-          </h2>
-          <Link
-            href="/admin/medici/nuovo"
-            className="auth-button inline-flex items-center justify-center no-underline"
-          >
-            Inserisci nuovo medico
-          </Link>
-        </section>
+      {kpi ? (
+        <>
+          <section className="admin-kpi-section">
+            <h2 className="dash-section-title">Volume attivo</h2>
+            <div className="admin-kpi-grid">
+              <article className="admin-kpi-card">
+                <p className="admin-kpi-label">Pazienti registrati</p>
+                <p className="admin-kpi-value">{kpi.totalePazientiRegistrati}</p>
+                <p className="admin-kpi-delta">
+                  Crescita mensile{" "}
+                  <span
+                    className={
+                      kpi.deltaCrescitaMensilePercentuale >= 0
+                        ? "is-up"
+                        : "is-down"
+                    }
+                  >
+                    {formatDelta(kpi.deltaCrescitaMensilePercentuale)}
+                  </span>
+                  <span className="admin-kpi-hint">
+                    {" "}
+                    ({kpi.pazientiNuoviMeseCorrente} questo mese ·{" "}
+                    {kpi.pazientiNuoviMesePrecedente} mese scorso)
+                  </span>
+                </p>
+              </article>
+              <article className="admin-kpi-card">
+                <p className="admin-kpi-label">Medici attivi</p>
+                <p className="admin-kpi-value">{kpi.totaleMediciAttivi}</p>
+                <p className="admin-kpi-delta">
+                  Password cambiata dopo il primo accesso
+                </p>
+              </article>
+              <article className="admin-kpi-card">
+                <p className="admin-kpi-label">In attesa di attivazione</p>
+                <p className="admin-kpi-value">
+                  {kpi.mediciInAttesaAttivazione}
+                </p>
+                <p className="admin-kpi-delta">
+                  Medici ancora con password temporanea
+                </p>
+              </article>
+            </div>
+          </section>
 
-        <div className="flex flex-col items-center gap-2 pt-2 text-sm">
-          <button className="auth-button" type="button" onClick={onLogout}>
-            Esci
-          </button>
-          <Link href="/" className="auth-link">
-            Torna alla home
-          </Link>
-        </div>
-      </div>
-    </main>
+          <section className="admin-kpi-section">
+            <h2 className="dash-section-title">Flusso clinico</h2>
+            <div className="admin-kpi-grid">
+              <article className="admin-kpi-card">
+                <p className="admin-kpi-label">Visite prenotate (mese)</p>
+                <p className="admin-kpi-value">
+                  {kpi.visitePrenotateMeseCorrente}
+                </p>
+              </article>
+              <article className="admin-kpi-card">
+                <p className="admin-kpi-label">Tasso di completamento</p>
+                <p className="admin-kpi-value">
+                  {kpi.tassoCompletamentoPercentuale.toFixed(1)}%
+                </p>
+                <p className="admin-kpi-delta">
+                  {kpi.visiteCompletateMeseCorrente} completate ·{" "}
+                  {kpi.visiteCancellateOSaltateMeseCorrente} cancellate/saltate
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section className="admin-kpi-section">
+            <h2 className="dash-section-title">Economico / finanziario</h2>
+            <div className="admin-kpi-grid">
+              <article className="admin-kpi-card admin-kpi-card-wide">
+                <p className="admin-kpi-label">
+                  Volume d&apos;affari intermediato (mese)
+                </p>
+                <p className="admin-kpi-value">
+                  {formatEuro(kpi.volumeAffariIntermediatoMese)}
+                </p>
+                <p className="admin-kpi-delta">
+                  Somma tariffe delle visite completate nel mese corrente
+                </p>
+              </article>
+            </div>
+          </section>
+        </>
+      ) : null}
+    </div>
   );
 }

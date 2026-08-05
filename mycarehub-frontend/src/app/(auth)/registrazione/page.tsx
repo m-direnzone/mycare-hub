@@ -13,6 +13,7 @@ import {
   messageForExistingRuolo,
   registerPaziente,
 } from "@/src/lib/supabase/client";
+import { toast } from "react-toastify";
 
 const CF_REGEX = /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/;
 
@@ -27,8 +28,6 @@ export default function RegistrazionePage() {
     dataNascita: "",
     telefono: "",
   });
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   function updateField<K extends keyof PazienteRegistrazioneDto>(
@@ -61,14 +60,12 @@ export default function RegistrazionePage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
 
     const codiceFiscale = form.codiceFiscale.trim().toUpperCase();
     const email = form.email.trim();
 
     if (!CF_REGEX.test(codiceFiscale)) {
-      setError("Formato codice fiscale non valido.");
+      toast.error("Formato codice fiscale non valido.");
       return;
     }
 
@@ -87,11 +84,15 @@ export default function RegistrazionePage() {
       router.replace("/dashboard");
     } catch (err) {
       if (isCodiceFiscaleTakenError(err)) {
-        setInfo(await resolveExistingMessage("cf", email, codiceFiscale, err));
+        toast.success(
+          await resolveExistingMessage("cf", email, codiceFiscale, err)
+        );
       } else if (isExistingAccountError(err)) {
-        setInfo(await resolveExistingMessage("email", email, codiceFiscale, err));
+        toast.success(
+          await resolveExistingMessage("email", email, codiceFiscale, err)
+        );
       } else {
-        setError(
+        toast.error(
           mapAuthErrorMessage(err, "Registrazione non riuscita. Riprova.")
         );
       }
@@ -111,16 +112,6 @@ export default function RegistrazionePage() {
           creati solo dall&apos;amministrazione.
         </p>
       </div>
-
-      {error ? <div className="auth-alert" role="alert">{error}</div> : null}
-      {info ? (
-        <div className="auth-alert auth-alert-info" role="status">
-          {info}{" "}
-          <Link href="/login" className="auth-link">
-            Vai al login
-          </Link>
-        </div>
-      ) : null}
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">

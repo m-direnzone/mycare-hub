@@ -54,6 +54,18 @@ public class MedicoRepository : IMedicoRepository
             .Set(x => x.Biografia!, dettaglio.Biografia)
             .Set(x => x.TariffaVisita!, dettaglio.TariffaVisita)
             .Set(x => x.Attivo!, dettaglio.Attivo)
+            .Set(x => x.PasswordCambiata!, dettaglio.PasswordCambiata)
+            .Update();
+
+        return response.Models.Count > 0;
+    }
+
+    public async Task<bool> MarkPasswordCambiataAsync(Guid medicoId)
+    {
+        var response = await _supabase
+            .From<MedicoDettaglio>()
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
+            .Set(x => x.PasswordCambiata!, true)
             .Update();
 
         return response.Models.Count > 0;
@@ -132,5 +144,49 @@ public class MedicoRepository : IMedicoRepository
             .Get();
 
         return response.Models;
+    }
+
+    public async Task<IEnumerable<MedicoDettaglio>> GetAllDettagliAsync()
+    {
+        var response = await _supabase
+            .From<MedicoDettaglio>()
+            .Get();
+
+        return response.Models;
+    }
+
+    public async Task<IEnumerable<(Profilo Profilo, MedicoDettaglio Dettagli)>> GetTuttiMediciAsync()
+    {
+        var dettagliResponse = await _supabase
+            .From<MedicoDettaglio>()
+            .Get();
+
+        var dettagli = dettagliResponse.Models;
+        if (dettagli.Count == 0)
+            return [];
+
+        var medicoIds = dettagli
+            .Select(d => d.MedicoId.ToString())
+            .Distinct()
+            .ToList();
+
+        var profiliResponse = await _supabase
+            .From<Profilo>()
+            .Filter(x => x.Id!, Operator.In, medicoIds)
+            .Filter(x => x.Ruolo!, Operator.Equals, "medico")
+            .Get();
+
+        var dettagliById = dettagli.ToDictionary(d => d.MedicoId);
+        var risultati = new List<(Profilo, MedicoDettaglio)>();
+
+        foreach (var profilo in profiliResponse.Models.OrderBy(p => p.Cognome).ThenBy(p => p.Nome))
+        {
+            if (!dettagliById.TryGetValue(profilo.Id, out var dett))
+                continue;
+
+            risultati.Add((profilo, dett));
+        }
+
+        return risultati;
     }
 }

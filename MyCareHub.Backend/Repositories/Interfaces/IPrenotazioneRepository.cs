@@ -25,4 +25,11 @@ public interface IPrenotazioneRepository
     Task<bool> UpdateStatoAsync(Guid id, StatoPrenotazione nuovoStato);
 
     Task<bool> UpdateNoteMedicheAsync(Guid id, string noteMediche);
+
+    /// <summary>
+    /// Elenco globale prenotazioni (admin), con filtro opzionale sullo slot temporale.
+    /// </summary>
+    Task<IEnumerable<Prenotazione>> GetAllAsync(
+        DateTimeOffset? dataInizio = null,
+        DateTimeOffset? dataFine = null);
 }

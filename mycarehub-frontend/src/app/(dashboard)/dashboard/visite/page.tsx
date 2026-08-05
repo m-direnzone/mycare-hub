@@ -10,6 +10,7 @@ import {
   statoLabel,
 } from "@/src/lib/dashboard-api";
 import type { PrenotazioneDto } from "@/src/types/dto";
+import { toast } from "react-toastify";
 
 type TabKey = "oggi" | "in_arrivo" | "storico";
 
@@ -29,14 +30,12 @@ export default function VisiteMedicoPage() {
   const [visite, setVisite] = useState<PrenotazioneDto[]>([]);
   const [tab, setTab] = useState<TabKey>("oggi");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [noteMediche, setNoteMediche] = useState<Record<string, string>>({});
   const [concludiOpen, setConcludiOpen] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    setError(null);
     try {
       const data = await fetchAgendaMedicoApi();
       setVisite(
@@ -47,7 +46,7 @@ export default function VisiteMedicoPage() {
         )
       );
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Impossibile caricare le visite."
       );
     } finally {
@@ -82,12 +81,11 @@ export default function VisiteMedicoPage() {
 
   async function onAccetta(id: string) {
     setBusyId(id);
-    setError(null);
     try {
       await cambiaStatoPrenotazioneApi(id, "confermata");
       await load();
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Accettazione non riuscita."
       );
     } finally {
@@ -99,12 +97,11 @@ export default function VisiteMedicoPage() {
     const motivo = prompt("Motivo della cancellazione (opzionale):");
     if (motivo === null) return;
     setBusyId(id);
-    setError(null);
     try {
       await cambiaStatoPrenotazioneApi(id, "cancellata");
       await load();
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Cancellazione non riuscita."
       );
     } finally {
@@ -115,17 +112,16 @@ export default function VisiteMedicoPage() {
   async function onConcludi(id: string) {
     const note = (noteMediche[id] ?? "").trim();
     if (!note) {
-      setError("Inserisci il resoconto clinico per concludere la visita.");
+      toast.error("Inserisci il resoconto clinico per concludere la visita.");
       return;
     }
     setBusyId(id);
-    setError(null);
     try {
       await concludiVisitaApi(id, { noteMediche: note });
       setConcludiOpen(null);
       await load();
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Conclusione non riuscita."
       );
     } finally {
@@ -141,8 +137,6 @@ export default function VisiteMedicoPage() {
           Registro visite: oggi, in arrivo e storico.
         </p>
       </header>
-
-      {error && <p className="auth-alert">{error}</p>}
 
       <div className="dash-tabs">
         {(

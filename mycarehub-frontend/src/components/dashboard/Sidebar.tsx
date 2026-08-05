@@ -32,11 +32,19 @@ export function Sidebar({
       />
       <aside className={`dash-sidebar ${open ? "is-open" : ""}`}>
         <div className="dash-sidebar-brand">
-          <Link href="/dashboard" className="dash-logo" onClick={onClose}>
+          <Link
+            href={ruolo === "admin" ? "/admin" : "/dashboard"}
+            className="dash-logo"
+            onClick={onClose}
+          >
             MyCareHub
           </Link>
           <p className="dash-sidebar-role">
-            {ruolo === "paziente" ? "Area paziente" : "Area medico"}
+            {ruolo === "paziente"
+              ? "Area paziente"
+              : ruolo === "medico"
+                ? "Area medico"
+                : "Area amministrazione"}
           </p>
         </div>
 
@@ -46,11 +54,16 @@ export function Sidebar({
               <p className="dash-nav-section-label">{section}</p>
               <ul>
                 {sectionItems.map((item) => {
-                  const matches = (href: string) =>
-                    pathname === href ||
-                    (href !== "/dashboard" &&
-                      pathname.startsWith(`${href}/`));
+                  const matches = (href: string) => {
+                    if (href === "/admin" || href === "/dashboard") {
+                      return pathname === href;
+                    }
+                    return (
+                      pathname === href || pathname.startsWith(`${href}/`)
+                    );
+                  };
 
+                  // Preferisci la voce più specifica (es. /admin/medici/nuovo vs /admin/medici)
                   const active =
                     matches(item.href) &&
                     !items.some(

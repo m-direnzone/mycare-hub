@@ -94,7 +94,8 @@ public class ProfiloService : IProfiloService
                 NumeroIscrizioneAlbo = albo,
                 Biografia = string.IsNullOrWhiteSpace(dto.Biografia) ? null : dto.Biografia.Trim(),
                 TariffaVisita = dto.TariffaVisita,
-                Attivo = true
+                Attivo = true,
+                PasswordCambiata = false
             };
 
             var dettagliOk = await _medicoRepository.CreateMedicoDettagliAsync(dettaglio);
@@ -144,7 +145,8 @@ public class ProfiloService : IProfiloService
             NumeroIscrizioneAlbo = dto.NumeroIscrizioneAlbo.Trim(),
             Biografia = string.IsNullOrWhiteSpace(dto.Biografia) ? null : dto.Biografia.Trim(),
             TariffaVisita = dto.TariffaVisita,
-            Attivo = true
+            Attivo = true,
+            PasswordCambiata = false
         };
 
         return await _medicoRepository.CreateMedicoDettagliAsync(dettaglio);
@@ -204,6 +206,15 @@ public class ProfiloService : IProfiloService
     {
         var medici = await _medicoRepository.GetMediciAttiviAsync(specializzazione, nome);
         return medici.Select(m => MapProfilo(m.Profilo, MapDettagli(m.Dettagli)));
+    }
+
+    public async Task<bool> SegnaPasswordCambiataAsync(Guid medicoId)
+    {
+        var profilo = await _profiloRepository.GetByIdAsync(medicoId);
+        if (profilo is null || profilo.Ruolo != RuoloUtente.Medico)
+            return false;
+
+        return await _medicoRepository.MarkPasswordCambiataAsync(medicoId);
     }
 
     private static ProfiloDto MapProfilo(Profilo profilo, MedicoDettaglioDto? dettagliMedico) => new()

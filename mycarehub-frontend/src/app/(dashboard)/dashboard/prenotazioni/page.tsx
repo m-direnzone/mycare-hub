@@ -10,16 +10,15 @@ import {
 } from "@/src/lib/dashboard-api";
 import type { PrenotazioneDto } from "@/src/types/dto";
 import { ApiError } from "@/src/lib/api";
+import { toast } from "react-toastify";
 
 export default function PrenotazioniPazientePage() {
   const [visite, setVisite] = useState<PrenotazioneDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    setError(null);
     try {
       const data = await fetchMieVisitePazienteApi();
       setVisite(
@@ -30,7 +29,7 @@ export default function PrenotazioniPazientePage() {
         )
       );
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
           : "Impossibile caricare le prenotazioni."
@@ -47,12 +46,11 @@ export default function PrenotazioniPazientePage() {
   async function onCancella(id: string) {
     if (!confirm("Confermi la cancellazione di questa prenotazione?")) return;
     setBusyId(id);
-    setError(null);
     try {
       await cambiaStatoPrenotazioneApi(id, "cancellata");
       await load();
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
           : "Cancellazione non riuscita."
@@ -77,8 +75,6 @@ export default function PrenotazioniPazientePage() {
           Nuova prenotazione
         </Link>
       </header>
-
-      {error && <p className="auth-alert">{error}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">Caricamento…</p>

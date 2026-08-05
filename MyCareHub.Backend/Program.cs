@@ -15,14 +15,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 var supabaseUrl = builder.Configuration["Supabase:Url"]
     ?? throw new InvalidOperationException("Supabase:Url mancante in configurazione.");
-// Preferire Service Role: le policy RLS su profili richiedono auth.uid() e la
-// publishable/anon key senza JWT utente non può leggere/aggiornare le righe.
-var serviceRoleKey = builder.Configuration["Supabase:ServiceRoleKey"];
-var usingServiceRole = !string.IsNullOrWhiteSpace(serviceRoleKey);
-var supabaseKey = usingServiceRole
-    ? serviceRoleKey!
-    : builder.Configuration["Supabase:Key"]
-        ?? throw new InvalidOperationException("Supabase:Key mancante in configurazione.");
+// Sempre publishable/anon key + JWT utente inoltrato: le operazioni rispettano RLS.
+// La service role non è usata dal backend (creazione Auth medici → Edge Function).
+var supabaseKey = builder.Configuration["Supabase:Key"]
+    ?? throw new InvalidOperationException("Supabase:Key mancante in configurazione.");
 var jwtIssuer = builder.Configuration["Supabase:JwtIssuer"]
     ?? $"{supabaseUrl}/auth/v1";
 var jwtAudience = builder.Configuration["Supabase:JwtAudience"] ?? "authenticated";
@@ -98,16 +94,13 @@ builder.Services.AddScoped<Client>(sp =>
         AutoConnectRealtime = false
     };
 
-    // Senza service role, inoltra il JWT dell'utente così RLS (auth.uid()) funziona.
-    if (!usingServiceRole)
+    // Inoltra sempre il JWT utente così RLS (auth.uid() / is_current_user_admin) funziona.
+    var http = sp.GetService<IHttpContextAccessor>()?.HttpContext;
+    var authorization = http?.Request.Headers.Authorization.ToString();
+    if (!string.IsNullOrWhiteSpace(authorization) &&
+        authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
     {
-        var http = sp.GetService<IHttpContextAccessor>()?.HttpContext;
-        var authorization = http?.Request.Headers.Authorization.ToString();
-        if (!string.IsNullOrWhiteSpace(authorization) &&
-            authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            options.Headers["Authorization"] = authorization;
-        }
+        options.Headers["Authorization"] = authorization;
     }
 
     var client = new Client(supabaseUrl, supabaseKey, options);
@@ -120,12 +113,15 @@ builder.Services.AddScoped<IMedicoRepository, MedicoRepository>();
 builder.Services.AddScoped<ISlotDisponibilitaRepository, SlotDisponibilitaRepository>();
 builder.Services.AddScoped<IPrenotazioneRepository, PrenotazioneRepository>();
 builder.Services.AddScoped<IRefertoMedicoRepository, RefertoMedicoRepository>();
+builder.Services.AddScoped<ISpecializzazioneRepository, SpecializzazioneRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
 builder.Services.AddScoped<ISupabaseAuthAdminService, SupabaseAuthAdminService>();
 builder.Services.AddScoped<IProfiloService, ProfiloService>();
 builder.Services.AddScoped<ISlotService, SlotService>();
 builder.Services.AddScoped<IPrenotazioneService, PrenotazioneService>();
 builder.Services.AddScoped<IRefertoService, RefertoService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

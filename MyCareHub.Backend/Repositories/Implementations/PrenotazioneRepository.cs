@@ -52,22 +52,19 @@ public class PrenotazioneRepository : IPrenotazioneRepository
             return response.Models;
         }
 
-        // Agenda giornaliera/settimanale: filtra tramite gli slot nel range richiesto
-        var slotQuery = _supabase
+        // Agenda giornaliera/settimanale: filtra slot/date in memoria
+        // (evita Bad Request PostgREST su Filter DateTimeOffset e su IN troppo lunghi).
+        var slotsResponse = await _supabase
             .From<SlotDisponibilita>()
-            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString());
+            .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
+            .Get();
 
-        if (dataInizio.HasValue)
-            slotQuery = slotQuery.Filter(x => x.DataOraInizio!, Operator.GreaterThanOrEqual, dataInizio.Value);
-
-        if (dataFine.HasValue)
-            slotQuery = slotQuery.Filter(x => x.DataOraInizio!, Operator.LessThanOrEqual, dataFine.Value);
-
-        var slotsResponse = await slotQuery.Get();
         var slotIds = slotsResponse.Models
-            .Select(s => s.Id.ToString())
-            .Distinct()
-            .ToList();
+            .Where(s =>
+                (!dataInizio.HasValue || s.DataOraInizio >= dataInizio.Value) &&
+                (!dataFine.HasValue || s.DataOraInizio <= dataFine.Value))
+            .Select(s => s.Id)
+            .ToHashSet();
 
         if (slotIds.Count == 0)
             return [];
@@ -75,10 +72,11 @@ public class PrenotazioneRepository : IPrenotazioneRepository
         var prenotazioniResponse = await _supabase
             .From<Prenotazione>()
             .Filter(x => x.MedicoId!, Operator.Equals, medicoId.ToString())
-            .Filter(x => x.SlotId!, Operator.In, slotIds)
             .Get();
 
-        return prenotazioniResponse.Models;
+        return prenotazioniResponse.Models
+            .Where(p => slotIds.Contains(p.SlotId))
+            .ToList();
     }
 
     public async Task<Prenotazione?> CreateAsync(Prenotazione prenotazione)
@@ -122,5 +120,43 @@ public class PrenotazioneRepository : IPrenotazioneRepository
             .Update();
 
         return response.Models.Count > 0;
+    }
+
+    public async Task<IEnumerable<Prenotazione>> GetAllAsync(
+        DateTimeOffset? dataInizio = null,
+        DateTimeOffset? dataFine = null)
+    {
+        if (dataInizio is null && dataFine is null)
+        {
+            var response = await _supabase
+                .From<Prenotazione>()
+                .Order(x => x.CreatoAt!, Ordering.Descending)
+                .Get();
+
+            return response.Models;
+        }
+
+        // Carica tutti gli slot e filtra in memoria sul range (evita catene Filter tipizzate).
+        var slotsResponse = await _supabase
+            .From<SlotDisponibilita>()
+            .Get();
+
+        var slotIds = slotsResponse.Models
+            .Where(s =>
+                (!dataInizio.HasValue || s.DataOraInizio >= dataInizio.Value) &&
+                (!dataFine.HasValue || s.DataOraInizio <= dataFine.Value))
+            .Select(s => s.Id.ToString())
+            .Distinct()
+            .ToList();
+
+        if (slotIds.Count == 0)
+            return [];
+
+        var prenotazioniResponse = await _supabase
+            .From<Prenotazione>()
+            .Filter(x => x.SlotId!, Operator.In, slotIds)
+            .Get();
+
+        return prenotazioniResponse.Models;
     }
 }

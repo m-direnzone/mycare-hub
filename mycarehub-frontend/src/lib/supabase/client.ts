@@ -258,6 +258,14 @@ export async function changePasswordAndClearTempFlag(newPassword: string) {
     throw error;
   }
 
+  // Allinea flag DB usato dai KPI admin (best-effort).
+  try {
+    const { api } = await import("@/src/lib/api");
+    await api.post("/api/Profili/medici/mio/password-cambiata");
+  } catch {
+    // Ignora: il flag Auth è già aggiornato.
+  }
+
   return data;
 }
 

@@ -66,4 +66,37 @@ public class ProfiloRepository : IProfiloRepository
 
         return response.Models.Count > 0;
     }
+
+    public async Task<IEnumerable<Profilo>> GetByRuoloAsync(RuoloUtente ruolo)
+    {
+        var ruoloValue = ruolo switch
+        {
+            RuoloUtente.Paziente => "paziente",
+            RuoloUtente.Medico => "medico",
+            RuoloUtente.Admin => "admin",
+            _ => ruolo.ToString().ToLowerInvariant()
+        };
+
+        var response = await _supabase
+            .From<Profilo>()
+            .Filter(x => x.Ruolo!, Operator.Equals, ruoloValue)
+            .Order(x => x.Cognome!, Ordering.Ascending)
+            .Get();
+
+        return response.Models;
+    }
+
+    public async Task<IEnumerable<Profilo>> GetByIdsAsync(IEnumerable<Guid> ids)
+    {
+        var idList = ids.Select(id => id.ToString()).Distinct().ToList();
+        if (idList.Count == 0)
+            return [];
+
+        var response = await _supabase
+            .From<Profilo>()
+            .Filter(x => x.Id!, Operator.In, idList)
+            .Get();
+
+        return response.Models;
+    }
 }

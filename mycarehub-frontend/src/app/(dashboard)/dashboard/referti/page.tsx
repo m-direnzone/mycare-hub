@@ -8,6 +8,7 @@ import {
   formatDateTime,
 } from "@/src/lib/dashboard-api";
 import type { PrenotazioneDto } from "@/src/types/dto";
+import { toast } from "react-toastify";
 
 export default function RefertiMedicoPage() {
   const [visite, setVisite] = useState<PrenotazioneDto[]>([]);
@@ -17,8 +18,6 @@ export default function RefertiMedicoPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -34,7 +33,7 @@ export default function RefertiMedicoPage() {
         }
       } catch (err) {
         if (active) {
-          setError(
+          toast.error(
             err instanceof ApiError
               ? err.message
               : "Impossibile caricare le visite."
@@ -57,17 +56,15 @@ export default function RefertiMedicoPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selected || !file) {
-      setError("Seleziona una visita e un file PDF.");
+      toast.error("Seleziona una visita e un file PDF.");
       return;
     }
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Sono accettati solo file PDF.");
+      toast.error("Sono accettati solo file PDF.");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
-    setOk(null);
     try {
       const form = new FormData();
       form.append("prenotazioneId", selected.id);
@@ -77,13 +74,13 @@ export default function RefertiMedicoPage() {
       form.append("file", file);
 
       await caricaRefertoApi(form);
-      setOk("Referto caricato correttamente.");
+      toast.success("Referto caricato correttamente.");
       setTitolo("");
       setDescrizione("");
       setFile(null);
       setPrenotazioneId("");
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Upload referto non riuscito."
       );
     } finally {
@@ -99,9 +96,6 @@ export default function RefertiMedicoPage() {
           Carica un PDF collegato automaticamente a visita e paziente.
         </p>
       </header>
-
-      {error && <p className="auth-alert">{error}</p>}
-      {ok && <p className="auth-alert auth-alert-info">{ok}</p>}
 
       <form className="dash-panel space-y-4" onSubmit={onSubmit}>
         <label className="dash-label">

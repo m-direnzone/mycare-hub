@@ -14,10 +14,12 @@ namespace MyCareHub.Backend.Controllers;
 public class ProfiliController : ControllerBase
 {
     private readonly IProfiloService _profiloService;
+    private readonly IAdminService _adminService;
 
-    public ProfiliController(IProfiloService profiloService)
+    public ProfiliController(IProfiloService profiloService, IAdminService adminService)
     {
         _profiloService = profiloService;
+        _adminService = adminService;
     }
 
     /// <summary>
@@ -84,6 +86,23 @@ public class ProfiliController : ControllerBase
         try
         {
             var created = await _profiloService.CreaMedicoAsync(dto, cancellationToken);
+
+            var attoreId = User.GetUserId();
+            var attore = attoreId is null
+                ? null
+                : await _profiloService.GetProfiloCompletoAsync(attoreId.Value);
+            var attoreNome = attore is null
+                ? "Admin"
+                : $"{attore.Nome} {attore.Cognome}".Trim();
+
+            await _adminService.LogAsync(
+                attoreId,
+                attoreNome,
+                "Creazione medico",
+                "medico",
+                created.Id,
+                $"L'amministratore {attoreNome} ha creato il medico {dto.Nome.Trim()} {dto.Cognome.Trim()} ({dto.Email.Trim().ToLowerInvariant()}).");
+
             return CreatedAtAction(nameof(GetMioProfilo), created);
         }
         catch (InvalidOperationException ex)
@@ -180,5 +199,25 @@ public class ProfiliController : ControllerBase
     {
         var medici = await _profiloService.CercaMediciAsync(specializzazione, nome);
         return Ok(medici);
+    }
+
+    /// <summary>
+    /// Segna il cambio password al primo accesso per il medico autenticato.
+    /// </summary>
+    [HttpPost("medici/mio/password-cambiata")]
+    [Authorize(Roles = $"{nameof(RuoloUtente.Medico)},medico")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SegnaPasswordCambiata()
+    {
+        var utenteId = User.GetUserId();
+        if (utenteId is null)
+            return Unauthorized();
+
+        var ok = await _profiloService.SegnaPasswordCambiataAsync(utenteId.Value);
+        if (!ok)
+            return NotFound(new { message = "Dettagli medico non trovati." });
+
+        return NoContent();
     }
 }

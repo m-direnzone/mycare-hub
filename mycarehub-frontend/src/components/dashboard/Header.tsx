@@ -43,7 +43,9 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
           <span />
           <span />
         </button>
-        <p className="dash-header-title">Dashboard</p>
+        <p className="dash-header-title">
+          {profilo.ruolo === "admin" ? "Amministrazione" : "Dashboard"}
+        </p>
       </div>
 
       <div className="dash-header-right" ref={menuRef}>

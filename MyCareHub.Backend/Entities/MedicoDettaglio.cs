@@ -23,4 +23,10 @@ public class MedicoDettaglio : BaseModel
 
     [Column("attivo")]
     public bool Attivo { get; set; } = true;
+
+    /// <summary>
+    /// True dopo che il medico ha cambiato la password temporanea al primo accesso.
+    /// </summary>
+    [Column("password_cambiata")]
+    public bool PasswordCambiata { get; set; }
 }

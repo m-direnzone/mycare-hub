@@ -79,12 +79,19 @@ Deno.serve(async (req: Request) => {
     return json(401, { message: "Sessione non valida." });
   }
 
-  const ruolo =
+  const { data: profiloCaller } = await callerClient
+    .from("profili")
+    .select("ruolo, nome, cognome")
+    .eq("id", caller.id)
+    .maybeSingle();
+
+  const ruoloProfilo = String(profiloCaller?.ruolo ?? "").toLowerCase();
+  const ruoloMeta =
     (caller.app_metadata?.ruolo as string | undefined) ??
     (caller.app_metadata?.role as string | undefined) ??
     (caller.user_metadata?.ruolo as string | undefined);
 
-  if (String(ruolo).toLowerCase() !== "admin") {
+  if (ruoloProfilo !== "admin" && String(ruoloMeta).toLowerCase() !== "admin") {
     return json(403, {
       message: "Solo un amministratore può creare un medico.",
     });
@@ -212,6 +219,7 @@ Deno.serve(async (req: Request) => {
     biografia,
     tariffa_visita: tariffaVisita,
     attivo: true,
+    password_cambiata: false,
   });
 
   if (dettagliError) {
@@ -222,6 +230,19 @@ Deno.serve(async (req: Request) => {
         : dettagliError.message,
     });
   }
+
+  const attoreNome = profiloCaller
+    ? `${profiloCaller.nome ?? ""} ${profiloCaller.cognome ?? ""}`.trim() || "Admin"
+    : "Admin";
+
+  await admin.from("audit_log").insert({
+    attore_id: caller.id,
+    attore_nome: attoreNome,
+    azione: "Creazione medico",
+    entita_tipo: "medico",
+    entita_id: medicoId,
+    dettagli: `L'amministratore ${attoreNome} ha creato il medico ${nome} ${cognome} (${email}).`,
+  });
 
   return json(201, {
     id: medicoId,

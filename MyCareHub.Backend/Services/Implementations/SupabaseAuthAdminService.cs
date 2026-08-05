@@ -106,23 +106,102 @@ public class SupabaseAuthAdminService : ISupabaseAuthAdminService
         }
     }
 
+    public async Task<IReadOnlyDictionary<Guid, AuthUserAdminInfo>> GetUsersAdminInfoAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = userIds.Distinct().ToList();
+        var result = new Dictionary<Guid, AuthUserAdminInfo>();
+        if (ids.Count == 0)
+            return result;
+
+        if (!TryGetAdminConfig(out var url, out var serviceRoleKey))
+        {
+            _logger.LogWarning(
+                "Supabase:ServiceRoleKey mancante: impossibile leggere email/must_change_password da Auth Admin. " +
+                "I KPI medici (attivi vs in attesa) useranno solo lo stato 'attivo' del profilo.");
+            return result;
+        }
+
+        var client = CreateAdminClient(url, serviceRoleKey);
+
+        foreach (var userId in ids)
+        {
+            try
+            {
+                using var response = await client.GetAsync(
+                    $"auth/v1/admin/users/{userId}",
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                    continue;
+
+                var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(payload);
+                var root = doc.RootElement;
+
+                string? email = null;
+                if (root.TryGetProperty("email", out var emailProp))
+                    email = emailProp.GetString();
+
+                var mustChange = false;
+                if (root.TryGetProperty("user_metadata", out var meta)
+                    && meta.ValueKind == JsonValueKind.Object
+                    && meta.TryGetProperty("must_change_password", out var flag))
+                {
+                    mustChange = flag.ValueKind switch
+                    {
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        JsonValueKind.String => bool.TryParse(flag.GetString(), out var b) && b,
+                        _ => false
+                    };
+                }
+
+                result[userId] = new AuthUserAdminInfo
+                {
+                    UserId = userId,
+                    Email = email,
+                    MustChangePassword = mustChange
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Impossibile leggere utente Auth {UserId}", userId);
+            }
+        }
+
+        return result;
+    }
+
     private (string Url, string ServiceRoleKey) GetAdminConfig()
     {
-        var url = _configuration["Supabase:Url"]
-            ?? throw new InvalidOperationException("Supabase:Url mancante in configurazione.");
-
-        var serviceRoleKey =
-            _configuration["Supabase:ServiceRoleKey"]
-            ?? _configuration["SUPABASE_SERVICE_ROLE_KEY"]
-            ?? Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY");
-
-        if (string.IsNullOrWhiteSpace(serviceRoleKey))
+        if (!TryGetAdminConfig(out var url, out var serviceRoleKey))
         {
             throw new InvalidOperationException(
                 "Supabase:ServiceRoleKey mancante. Imposta la service role key per creare medici dal backend.");
         }
 
-        return (url.TrimEnd('/'), serviceRoleKey);
+        return (url, serviceRoleKey);
+    }
+
+    private bool TryGetAdminConfig(out string url, out string serviceRoleKey)
+    {
+        url = (_configuration["Supabase:Url"] ?? string.Empty).TrimEnd('/');
+        serviceRoleKey =
+            _configuration["Supabase:ServiceRoleKey"]
+            ?? _configuration["SUPABASE_SERVICE_ROLE_KEY"]
+            ?? Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY")
+            ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(serviceRoleKey))
+        {
+            url = string.Empty;
+            serviceRoleKey = string.Empty;
+            return false;
+        }
+
+        return true;
     }
 
     private HttpClient CreateAdminClient(string url, string serviceRoleKey)

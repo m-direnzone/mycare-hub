@@ -54,7 +54,7 @@ async function cercaMediciFromDb(params: {
     throw new Error(error.message);
   }
 
-  const rows = (data ?? []) as MedicoDettaglioRow[];
+  const rows = (data ?? []) as unknown as MedicoDettaglioRow[];
   const mapped = rows
     .filter((row) => row.profili?.ruolo === "medico")
     .map((row) => {
@@ -258,7 +258,7 @@ export function formatDate(iso: string): string {
   }
 }
 
-export function statoLabel(stato: StatoPrenotazione): string {
+export function statoLabel(stato: StatoPrenotazione | string): string {
   switch (stato) {
     case "in_attesa":
       return "In attesa";
@@ -269,7 +269,7 @@ export function statoLabel(stato: StatoPrenotazione): string {
     case "cancellata":
       return "Cancellata";
     default:
-      return stato;
+      return String(stato);
   }
 }
 

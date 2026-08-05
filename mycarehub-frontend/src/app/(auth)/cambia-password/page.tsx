@@ -9,12 +9,12 @@ import {
   needsPasswordChange,
 } from "@/src/lib/supabase/client";
 import { resolveHomePathFromProfilo } from "@/src/lib/routing";
+import { toast } from "react-toastify";
 
 export default function CambiaPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -47,15 +47,14 @@ export default function CambiaPasswordPage() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
 
     if (password.length < 8) {
-      setError("La nuova password deve avere almeno 8 caratteri.");
+      toast.error("La nuova password deve avere almeno 8 caratteri.");
       return;
     }
 
     if (password !== confirm) {
-      setError("Le password non coincidono.");
+      toast.error("Le password non coincidono.");
       return;
     }
 
@@ -65,11 +64,11 @@ export default function CambiaPasswordPage() {
       await changePasswordAndClearTempFlag(password);
       router.replace(await resolveHomePathFromProfilo());
     } catch (err) {
-      const message =
+      toast.error(
         err instanceof Error
           ? err.message
-          : "Impossibile aggiornare la password.";
-      setError(message);
+          : "Impossibile aggiornare la password."
+      );
     } finally {
       setLoading(false);
     }
@@ -90,8 +89,6 @@ export default function CambiaPasswordPage() {
           ricevuta via email.
         </p>
       </div>
-
-      {error ? <div className="auth-alert" role="alert">{error}</div> : null}
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <label className="block space-y-1.5 text-sm">

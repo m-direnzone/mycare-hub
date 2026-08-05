@@ -41,4 +41,9 @@ public interface IProfiloService
     /// Ricerca medici attivi filtrando per specializzazione e/o nome.
     /// </summary>
     Task<IEnumerable<ProfiloDto>> CercaMediciAsync(string? specializzazione = null, string? nome = null);
+
+    /// <summary>
+    /// Segna che il medico ha completato il cambio password al primo accesso.
+    /// </summary>
+    Task<bool> SegnaPasswordCambiataAsync(Guid medicoId);
 }

@@ -13,10 +13,24 @@ public interface ISupabaseAuthAdminService
         CancellationToken cancellationToken = default);
 
     Task DeleteUserAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recupera email e flag must_change_password per un set di utenti Auth.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, AuthUserAdminInfo>> GetUsersAdminInfoAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class MedicoAuthCreateResult
 {
     public required Guid UserId { get; init; }
     public required string Email { get; init; }
+}
+
+public sealed class AuthUserAdminInfo
+{
+    public required Guid UserId { get; init; }
+    public string? Email { get; init; }
+    public bool MustChangePassword { get; init; }
 }

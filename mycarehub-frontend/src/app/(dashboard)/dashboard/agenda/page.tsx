@@ -18,6 +18,7 @@ import {
   type StagionePreset,
 } from "@/src/lib/dashboard-api";
 import type { SlotDto } from "@/src/types/dto";
+import { toast } from "react-toastify";
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const WEEKDAY_OPTIONS = [
@@ -99,8 +100,6 @@ export default function AgendaMedicoPage() {
   const { profilo } = useDashboard();
   const [slots, setSlots] = useState<SlotDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [tab, setTab] = useState<"genera" | "agenda">("genera");
@@ -199,7 +198,6 @@ export default function AgendaMedicoPage() {
 
   async function load() {
     setLoading(true);
-    setError(null);
     try {
       const from = new Date();
       from.setMonth(from.getMonth() - 1);
@@ -220,7 +218,7 @@ export default function AgendaMedicoPage() {
         )
       );
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Impossibile caricare l'agenda."
       );
     } finally {
@@ -259,28 +257,26 @@ export default function AgendaMedicoPage() {
   async function onGenerate(e: React.FormEvent) {
     e.preventDefault();
     setGenerating(true);
-    setError(null);
-    setOk(null);
     try {
       if (mode === "singolo" && selectedDay < todayKey) {
-        setError("Non è possibile creare slot nel passato.");
+        toast.error("Non è possibile creare slot nel passato.");
         return;
       }
       if (mode === "ricorrente") {
         if (!dataInizio || !dataFine) {
-          setError("Imposta data inizio e data fine del periodo.");
+          toast.error("Imposta data inizio e data fine del periodo.");
           return;
         }
         if (dataFine < dataInizio) {
-          setError("La data fine deve essere successiva alla data inizio.");
+          toast.error("La data fine deve essere successiva alla data inizio.");
           return;
         }
         if (dataFine < todayKey) {
-          setError("Non è possibile creare slot nel passato.");
+          toast.error("Non è possibile creare slot nel passato.");
           return;
         }
         if (fasce.some((f) => f.weekdays.length === 0)) {
-          setError("Ogni fascia ricorrente deve avere almeno un giorno.");
+          toast.error("Ogni fascia ricorrente deve avere almeno un giorno.");
           return;
         }
       }
@@ -308,7 +304,7 @@ export default function AgendaMedicoPage() {
             });
 
       if (candidati.length === 0) {
-        setError("Intervallo non valido: nessun slot generabile.");
+        toast.error("Intervallo non valido: nessun slot generabile.");
         return;
       }
 
@@ -316,7 +312,7 @@ export default function AgendaMedicoPage() {
       const skipped = candidati.length - slotRichiesti.length;
 
       if (slotRichiesti.length === 0) {
-        setError(
+        toast.error(
           skipped > 0
             ? "Tutti gli slot richiesti sono già presenti in agenda o nel passato."
             : "Intervallo non valido: nessun slot generabile."
@@ -328,7 +324,7 @@ export default function AgendaMedicoPage() {
         medicoId: profilo.id,
         slotRichiesti,
       });
-      setOk(
+      toast.success(
         skipped > 0
           ? `Creati ${result.slotCreati} slot (${skipped} saltati: già presenti o passati).`
           : `Creati ${result.slotCreati} slot.`
@@ -336,7 +332,7 @@ export default function AgendaMedicoPage() {
       await load();
       setTab("agenda");
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
           : "Generazione massiva non riuscita."
@@ -349,12 +345,11 @@ export default function AgendaMedicoPage() {
   async function onBlocca(slotId: string) {
     if (!confirm("Bloccare (eliminare) questo slot libero?")) return;
     setBusyId(slotId);
-    setError(null);
     try {
       await eliminaSlotApi(slotId);
       await load();
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError ? err.message : "Blocco slot non riuscito."
       );
     } finally {
@@ -371,19 +366,13 @@ export default function AgendaMedicoPage() {
         </p>
       </header>
 
-      {error && <p className="auth-alert">{error}</p>}
-      {ok && <p className="auth-alert auth-alert-info">{ok}</p>}
-
       <div className="dash-tabs" role="tablist" aria-label="Sezioni agenda">
         <button
           type="button"
           role="tab"
           aria-selected={tab === "genera"}
           className={`dash-tab${tab === "genera" ? " is-active" : ""}`}
-          onClick={() => {
-            setTab("genera");
-            setError(null);
-          }}
+          onClick={() => setTab("genera")}
         >
           Genera slot
         </button>
@@ -392,10 +381,7 @@ export default function AgendaMedicoPage() {
           role="tab"
           aria-selected={tab === "agenda"}
           className={`dash-tab${tab === "agenda" ? " is-active" : ""}`}
-          onClick={() => {
-            setTab("agenda");
-            setError(null);
-          }}
+          onClick={() => setTab("agenda")}
         >
           Agenda
           {!loading && slots.length > 0 ? ` (${slots.length})` : ""}

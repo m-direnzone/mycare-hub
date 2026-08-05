@@ -138,4 +138,18 @@ public class SlotDisponibilitaRepository : ISlotDisponibilitaRepository
 
         return true;
     }
+
+    public async Task<IEnumerable<SlotDisponibilita>> GetByIdsAsync(IEnumerable<Guid> ids)
+    {
+        var idList = ids.Select(id => id.ToString()).Distinct().ToList();
+        if (idList.Count == 0)
+            return [];
+
+        var response = await _supabase
+            .From<SlotDisponibilita>()
+            .Filter(x => x.Id!, Operator.In, idList)
+            .Get();
+
+        return response.Models;
+    }
 }

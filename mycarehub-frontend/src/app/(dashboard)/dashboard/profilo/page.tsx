@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useDashboard } from "@/src/components/dashboard/DashboardContext";
 import { updateMioProfiloFromDb } from "@/src/lib/profilo";
+import { toast } from "react-toastify";
 
 export default function ProfiloPage() {
   const { profilo, email, setProfilo } = useDashboard();
@@ -10,14 +11,10 @@ export default function ProfiloPage() {
   const [cognome, setCognome] = useState(profilo.cognome);
   const [telefono, setTelefono] = useState(profilo.telefono ?? "");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setOk(null);
     try {
       const updated = await updateMioProfiloFromDb({
         nome: nome.trim(),
@@ -29,9 +26,9 @@ export default function ProfiloPage() {
         ...updated,
         dettagliMedico: profilo.dettagliMedico,
       });
-      setOk("Profilo aggiornato.");
+      toast.success("Profilo aggiornato.");
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof Error ? err.message : "Aggiornamento non riuscito."
       );
     } finally {
@@ -47,9 +44,6 @@ export default function ProfiloPage() {
           Anagrafica e codice fiscale. Il CF non è modificabile.
         </p>
       </header>
-
-      {error && <p className="auth-alert">{error}</p>}
-      {ok && <p className="auth-alert auth-alert-info">{ok}</p>}
 
       <form className="dash-panel space-y-4" onSubmit={onSave}>
         <div className="dash-form-grid">

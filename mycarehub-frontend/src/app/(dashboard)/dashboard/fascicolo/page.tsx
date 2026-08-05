@@ -7,11 +7,11 @@ import {
   formatDate,
 } from "@/src/lib/dashboard-api";
 import type { RefertoDto } from "@/src/types/dto";
+import { toast } from "react-toastify";
 
 export default function FascicoloPage() {
   const [referti, setReferti] = useState<RefertoDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -29,7 +29,7 @@ export default function FascicoloPage() {
         }
       } catch (err) {
         if (active) {
-          setError(
+          toast.error(
             err instanceof ApiError
               ? err.message
               : "Impossibile caricare il fascicolo."
@@ -52,8 +52,6 @@ export default function FascicoloPage() {
           Storico referti clinici con download protetto via Signed URL.
         </p>
       </header>
-
-      {error && <p className="auth-alert">{error}</p>}
 
       {loading ? (
         <p className="text-sm text-muted">Caricamento…</p>

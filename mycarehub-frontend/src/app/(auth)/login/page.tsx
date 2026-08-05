@@ -8,17 +8,16 @@ import {
   login,
   needsPasswordChange,
 } from "@/src/lib/supabase/client";
+import { toast } from "react-toastify";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setLoading(true);
 
     try {
@@ -31,11 +30,11 @@ export default function LoginPage() {
 
       router.replace(await resolveHomePathFromProfilo());
     } catch (err) {
-      const message =
+      toast.error(
         err instanceof Error
           ? err.message
-          : "Accesso non riuscito. Controlla le credenziali.";
-      setError(message);
+          : "Accesso non riuscito. Controlla le credenziali."
+      );
     } finally {
       setLoading(false);
     }
@@ -51,8 +50,6 @@ export default function LoginPage() {
           Usa email e password per entrare nella dashboard.
         </p>
       </div>
-
-      {error ? <div className="auth-alert" role="alert">{error}</div> : null}
 
       <form className="space-y-4" onSubmit={onSubmit}>
         <label className="block space-y-1.5 text-sm">

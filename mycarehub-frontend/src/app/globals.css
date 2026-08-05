@@ -1462,3 +1462,238 @@ select.auth-field:disabled:focus {
   box-shadow: 0 12px 28px rgba(20, 48, 40, 0.16) !important;
   max-width: 100% !important;
 }
+
+/* —— Admin area —— */
+.admin-kpi-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-kpi-card {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 1rem 1.1rem;
+  box-shadow: 0 8px 22px rgba(20, 48, 40, 0.05);
+}
+
+.admin-kpi-card-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-kpi-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-kpi-value {
+  margin: 0.45rem 0 0;
+  font-size: 1.85rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--brand-deep);
+  line-height: 1.1;
+}
+
+.admin-kpi-delta {
+  margin: 0.45rem 0 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.admin-kpi-delta .is-up {
+  color: #0f6b5c;
+  font-weight: 700;
+}
+
+.admin-kpi-delta .is-down {
+  color: #a33b3b;
+  font-weight: 700;
+}
+
+.admin-kpi-hint {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.admin-table-wrap {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-table-count {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.admin-table-scroll {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 52rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+.admin-table thead th {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(15, 107, 92, 0.04);
+  white-space: nowrap;
+}
+
+.admin-table-filters th {
+  background: rgba(255, 255, 255, 0.9);
+  padding-top: 0.45rem;
+  padding-bottom: 0.55rem;
+}
+
+.admin-filter-input {
+  width: 100%;
+  min-width: 7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  font-size: 0.82rem;
+  background: white;
+}
+
+.admin-table-empty {
+  text-align: center !important;
+  color: var(--muted);
+  padding: 1.5rem !important;
+}
+
+.admin-table-actions,
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.admin-row-actions .dash-btn,
+.admin-table-actions .dash-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(12, 28, 24, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.admin-modal {
+  width: min(40rem, 100%);
+  max-height: min(90vh, 52rem);
+  overflow: auto;
+  background: #f7faf8;
+  border-radius: 1.1rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px rgba(12, 28, 24, 0.22);
+  padding: 1.1rem 1.2rem 1.25rem;
+}
+
+.admin-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.admin-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  grid-column: 1 / -1;
+}
+
+.admin-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-direction: row !important;
+}
+
+.admin-period-filters,
+.admin-spec-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.admin-period-filters .dash-label,
+.admin-spec-form .dash-label {
+  min-width: 8rem;
+}
+
+.admin-spec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.admin-spec-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.75rem 0.9rem;
+}
+
+.admin-spec-item .dash-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
