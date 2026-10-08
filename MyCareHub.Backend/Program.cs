@@ -183,7 +183,15 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // FallbackPolicy richiede autenticazione su tutti gli endpoint.
+    // In Development OpenAPI e Swagger UI restano anonimi per la documentazione.
+    app.MapOpenApi().AllowAnonymous();
+    app.MapOpenApi("/swagger/{documentName}/swagger.json").AllowAnonymous();
+    app.MapSwaggerUI(setupAction: options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "MyCareHub API v1");
+    }).AllowAnonymous();
 }
 
 app.UseResponseCompression();
