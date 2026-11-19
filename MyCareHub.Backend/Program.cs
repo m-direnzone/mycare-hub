@@ -242,37 +242,34 @@ static void AddRuoloClaims(ClaimsIdentity identity, string ruolo)
 
 static string? ExtractRuoloFromToken(TokenValidatedContext context)
 {
-    // 1) Payload JWT grezzo (affidabile con JsonWebTokenHandler)
+    // app_metadata è amministrato dal server. user_metadata è modificabile
+    // dall'utente autenticato e non è una fonte di autorizzazione.
+    // Se il token non porta un ruolo server-side, MapRuoloClaimsAsync
+    // legge public.profili.
     if (context.SecurityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jwt)
     {
         var fromApp = ReadRuoloFromMetadataElement(TryGetJwtObject(jwt, "app_metadata"));
         if (!string.IsNullOrWhiteSpace(fromApp))
             return fromApp;
 
-        var fromUser = ReadRuoloFromMetadataElement(TryGetJwtObject(jwt, "user_metadata"));
-        if (!string.IsNullOrWhiteSpace(fromUser))
-            return fromUser;
-
         if (jwt.TryGetPayloadValue("ruolo", out string? topRuolo) && !string.IsNullOrWhiteSpace(topRuolo))
             return topRuolo;
     }
 
-    // 2) Claim serializzati come JSON string
     var fromAppClaim = ReadRuoloFromMetadataJson(context.Principal?.FindFirst("app_metadata")?.Value);
     if (!string.IsNullOrWhiteSpace(fromAppClaim))
         return fromAppClaim;
 
-    var fromUserClaim = ReadRuoloFromMetadataJson(context.Principal?.FindFirst("user_metadata")?.Value);
-    if (!string.IsNullOrWhiteSpace(fromUserClaim))
-        return fromUserClaim;
+    var flat = context.Principal?.FindFirst("ruolo")?.Value;
+    if (!string.IsNullOrWhiteSpace(flat))
+        return flat;
 
-    // 3) Claim piatti
-    return context.Principal?.FindFirst("ruolo")?.Value
-        ?? context.Principal?.Claims
-            .FirstOrDefault(c =>
-                c.Type.EndsWith("ruolo", StringComparison.OrdinalIgnoreCase) &&
-                c.Value is "paziente" or "medico" or "admin")
-            ?.Value;
+    return context.Principal?.Claims
+        .FirstOrDefault(c =>
+            !c.Type.Contains("user_metadata", StringComparison.OrdinalIgnoreCase) &&
+            c.Type.EndsWith("ruolo", StringComparison.OrdinalIgnoreCase) &&
+            c.Value is "paziente" or "medico" or "admin")
+        ?.Value;
 }
 
 static JsonElement? TryGetJwtObject(
