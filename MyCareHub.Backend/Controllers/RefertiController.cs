@@ -60,6 +60,9 @@ public class RefertiController : ControllerBase
             return Unauthorized();
 
         await using var stream = file.OpenReadStream();
+        if (stream.CanSeek && !await HasPdfHeaderAsync(stream))
+            return BadRequest(new { message = "Sono accettati solo file PDF." });
+
         var referto = await _refertoService.CaricaRefertoAsync(
             medicoId.Value,
             dto,
@@ -118,5 +121,27 @@ public class RefertiController : ControllerBase
             return Forbid();
 
         return Ok(referto);
+    }
+
+    private static async Task<bool> HasPdfHeaderAsync(Stream stream)
+    {
+        var header = new byte[5];
+        var read = 0;
+        while (read < header.Length)
+        {
+            var n = await stream.ReadAsync(header.AsMemory(read, header.Length - read));
+            if (n == 0)
+                break;
+            read += n;
+        }
+
+        stream.Position = 0;
+
+        return read == 5
+            && header[0] == (byte)'%'
+            && header[1] == (byte)'P'
+            && header[2] == (byte)'D'
+            && header[3] == (byte)'F'
+            && header[4] == (byte)'-';
     }
 }

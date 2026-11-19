@@ -53,9 +53,12 @@ public class RefertoService : IRefertoService
         if (buffer.Length == 0 || buffer.Length > MaxFileBytes)
             return null;
 
+        var bytes = buffer.ToArray();
+        if (!HasPdfHeader(bytes))
+            return null;
+
         var safeName = SanitizeFileName(fileName);
         var storagePath = $"{dto.PazienteId:D}/{medicoId:D}/{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}_{safeName}";
-        var bytes = buffer.ToArray();
 
         var uploadedPath = await _supabase.Storage
             .From(_bucketName)
@@ -228,6 +231,16 @@ public class RefertoService : IRefertoService
             return true;
 
         return fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasPdfHeader(ReadOnlySpan<byte> content)
+    {
+        return content.Length >= 5
+            && content[0] == (byte)'%'
+            && content[1] == (byte)'P'
+            && content[2] == (byte)'D'
+            && content[3] == (byte)'F'
+            && content[4] == (byte)'-';
     }
 
     private static string SanitizeFileName(string fileName)
