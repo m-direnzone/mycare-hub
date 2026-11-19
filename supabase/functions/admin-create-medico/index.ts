@@ -79,19 +79,20 @@ Deno.serve(async (req: Request) => {
     return json(401, { message: "Sessione non valida." });
   }
 
-  const { data: profiloCaller } = await callerClient
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Ruolo solo da public.profili via service role. user_metadata è modificabile
+  // dal client e non è una fonte di autorizzazione. Se la riga non è leggibile, nega.
+  const { data: profiloCaller, error: profiloCallerError } = await admin
     .from("profili")
     .select("ruolo, nome, cognome")
     .eq("id", caller.id)
     .maybeSingle();
 
   const ruoloProfilo = String(profiloCaller?.ruolo ?? "").toLowerCase();
-  const ruoloMeta =
-    (caller.app_metadata?.ruolo as string | undefined) ??
-    (caller.app_metadata?.role as string | undefined) ??
-    (caller.user_metadata?.ruolo as string | undefined);
-
-  if (ruoloProfilo !== "admin" && String(ruoloMeta).toLowerCase() !== "admin") {
+  if (profiloCallerError || ruoloProfilo !== "admin") {
     return json(403, {
       message: "Solo un amministratore può creare un medico.",
     });
@@ -129,10 +130,6 @@ Deno.serve(async (req: Request) => {
   if (!Number.isFinite(tariffaVisita) || tariffaVisita < 0.01 || tariffaVisita > 10000) {
     return json(400, { message: "Tariffa visita non valida." });
   }
-
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   const { data: cfTaken } = await admin.rpc("is_codice_fiscale_disponibile", {
     p_cf: codiceFiscale,
